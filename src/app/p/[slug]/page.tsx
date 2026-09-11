@@ -1,0 +1,57 @@
+import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import type { Patient, PatientLink, Protocol, PatientSupplement, Nutritionist } from "@/lib/types";
+import { PatientGate } from "./PatientGate";
+import { PatientOverview } from "./PatientOverview";
+
+export default async function PublicPatientPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const supabase = createServiceRoleClient();
+
+  const { data: link } = await supabase
+    .from("patient_links")
+    .select("*, patient:patients(*, nutritionist:nutritionists(*))")
+    .eq("slug", slug)
+    .single<PatientLink & { patient: Patient & { nutritionist: Nutritionist } }>();
+
+  if (!link || link.revoked_at) notFound();
+  if (link.expires_at && new Date(link.expires_at) < new Date()) notFound();
+
+  const cookieStore = await cookies();
+  const hasAccess = cookieStore.get(`pl_${slug}`)?.value === "granted";
+
+  if (!hasAccess) {
+    return (
+      <PatientGate
+        slug={slug}
+        patientFirstName={link.patient.full_name.split(" ")[0]}
+        clinicName={link.patient.nutritionist.clinic_name ?? link.patient.nutritionist.full_name}
+        alreadyConsented={!!link.consent_accepted_at}
+      />
+    );
+  }
+
+  const [{ data: protocol }, { data: supplements }] = await Promise.all([
+    supabase
+      .from("protocols")
+      .select("*")
+      .eq("patient_id", link.patient.id)
+      .eq("active", true)
+      .maybeSingle<Protocol>(),
+    supabase
+      .from("patient_supplements")
+      .select("*, supplement:supplements_catalog(*)")
+      .eq("patient_id", link.patient.id)
+      .returns<PatientSupplement[]>(),
+  ]);
+
+  return (
+    <PatientOverview
+      patient={link.patient}
+      nutritionist={link.patient.nutritionist}
+      protocol={protocol}
+      supplements={supplements ?? []}
+    />
+  );
+}

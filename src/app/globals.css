@@ -1,0 +1,88 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Poppins", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono-data: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-brand: #1f4b3f;
+  --color-brand-strong: #153631;
+  --color-brand-on: #ffffff;
+  --color-accent: #a6761e;
+  --color-accent-strong: #8c6318;
+  --color-accent-soft: #f1e4c8;
+  --color-success: #2f8f5b;
+  --color-success-soft: #e3f3e9;
+  --color-warning: #c9711a;
+  --color-warning-soft: #fbebd8;
+  --color-danger: #b23b3b;
+  --color-danger-soft: #fbe6e4;
+}
+
+:root {
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --surface-2: #eeebe1;
+  --ink: #1b211d;
+  --ink-soft: #5b6259;
+  --ink-faint: #8a9088;
+  --border: #dedacc;
+  --border-soft: #e9e5d8;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101a16;
+    --surface: #16221d;
+    --surface-2: #1d2b24;
+    --ink: #ece9df;
+    --ink-soft: #a9b3a9;
+    --ink-faint: #75827a;
+    --border: #2b3b32;
+    --border-soft: #233029;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #101a16;
+  --surface: #16221d;
+  --surface-2: #1d2b24;
+  --ink: #ece9df;
+  --ink-soft: #a9b3a9;
+  --ink-faint: #75827a;
+  --border: #2b3b32;
+  --border-soft: #233029;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+
+.font-mono-data {
+  font-family: var(--font-mono-data);
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}

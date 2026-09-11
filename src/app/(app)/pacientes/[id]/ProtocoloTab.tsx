@@ -1,0 +1,131 @@
+import type { AnthropometryRecord, FoodCatalogItem, Patient, Protocol } from "@/lib/types";
+import { MEAL_SCHEDULE } from "@/lib/types";
+import { Button } from "@/components/ui/Button";
+import { ProtocolEditorDialog } from "./ProtocolEditorDialog";
+
+const DAYS: { key: keyof NonNullable<Protocol["weekly_menu"]>; label: string }[] = [
+  { key: "seg", label: "Seg" },
+  { key: "ter", label: "Ter" },
+  { key: "qua", label: "Qua" },
+  { key: "qui", label: "Qui" },
+  { key: "sex", label: "Sex" },
+  { key: "sab", label: "Sáb" },
+  { key: "dom", label: "Dom" },
+];
+
+const MEALS = MEAL_SCHEDULE;
+
+export function ProtocoloTab({
+  patient,
+  protocol,
+  foods,
+  latestAnthropometry,
+}: {
+  patient: Patient;
+  protocol: Protocol | null;
+  foods: FoodCatalogItem[];
+  latestAnthropometry: AnthropometryRecord | null;
+}) {
+  if (!protocol) {
+    return (
+      <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--ink-soft)]">
+        <p className="mb-4">
+          Nenhum protocolo alimentar ativo. Crie o cardápio de 7 dias e a antropometria para este paciente.
+        </p>
+        <ProtocolEditorDialog patient={patient} protocol={null} foods={foods} latestAnthropometry={latestAnthropometry} />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex justify-end">
+        <ProtocolEditorDialog patient={patient} protocol={protocol} foods={foods} latestAnthropometry={latestAnthropometry} />
+      </div>
+
+      <div className="mb-6 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+        <AnthroTile value={protocol.weight_kg ? `${protocol.weight_kg} kg` : "—"} label="Peso" />
+        <AnthroTile value={protocol.height_m ? `${protocol.height_m} m` : "—"} label="Altura" />
+        <AnthroTile value={imc(protocol)} label="IMC" />
+        <AnthroTile value={protocol.body_fat_pct ? `${protocol.body_fat_pct}%` : "—"} label="Gordura" />
+        <AnthroTile value={protocol.waist_cm ? `${protocol.waist_cm} cm` : "—"} label="Cint. abdominal" />
+      </div>
+
+      <h3 className="mb-3 text-sm font-semibold">Cardápio — 7 dias</h3>
+      <div className="mb-6 overflow-x-auto rounded-xl border border-[var(--border-soft)]">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="sticky left-0 whitespace-nowrap bg-[var(--surface-2)] px-3 py-2.5 text-left font-bold uppercase tracking-wide text-[var(--ink-soft)]">
+                Refeição
+              </th>
+              {DAYS.map((d) => (
+                <th
+                  key={d.key}
+                  className="whitespace-nowrap bg-[var(--surface-2)] px-3 py-2.5 text-left font-bold uppercase tracking-wide text-[var(--ink-soft)]"
+                >
+                  {d.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {MEALS.map((meal) => (
+              <tr key={meal.key}>
+                <td className="sticky left-0 whitespace-nowrap border-t border-[var(--border-soft)] bg-[var(--surface-2)] px-3 py-2.5 font-bold">
+                  {meal.label}
+                  <span className="ml-1.5 font-normal text-[10px] text-[var(--ink-faint)]">{meal.time}</span>
+                </td>
+                {DAYS.map((d) => {
+                  const slot = protocol.weekly_menu[d.key]?.[meal.key];
+                  return (
+                    <td key={d.key} className="border-t border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5">
+                      {slot ? (
+                        <>
+                          {slot.descricao}
+                          <span className="mt-1 block font-mono-data text-[10.5px] font-semibold text-accent-strong">
+                            {slot.kcal} kcal
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[var(--ink-faint)]">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="mb-3 text-sm font-semibold">Lista de compras (gerada automaticamente)</h3>
+      <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+        {protocol.shopping_list.map((item) => (
+          <div key={item} className="flex items-center gap-2 text-sm text-[var(--ink-soft)]">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-sm bg-brand" />
+            {item}
+          </div>
+        ))}
+      </div>
+
+      <a href={`/api/pdf/protocolo/${patient.id}`} target="_blank" rel="noreferrer">
+        <Button variant="accent">⭳ Gerar PDF do protocolo</Button>
+      </a>
+    </div>
+  );
+}
+
+function imc(protocol: Protocol) {
+  if (!protocol.weight_kg || !protocol.height_m) return "—";
+  return (protocol.weight_kg / (protocol.height_m * protocol.height_m)).toFixed(1);
+}
+
+function AnthroTile({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface)] p-3 text-center">
+      <div className="font-mono-data text-base font-semibold">{value}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-wide text-[var(--ink-soft)]">{label}</div>
+    </div>
+  );
+}

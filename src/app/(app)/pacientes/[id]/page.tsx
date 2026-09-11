@@ -1,0 +1,116 @@
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { Badge } from "@/components/ui/Badge";
+import { Tabs } from "@/components/ui/Tabs";
+import type { Patient, Protocol, PatientSupplement, Exam, ExamResult, AnthropometryRecord, FoodCatalogItem, SupplementCatalogItem, SupplementPreset } from "@/lib/types";
+import { CadastroTab } from "./CadastroTab";
+import { ProtocoloTab } from "./ProtocoloTab";
+import { ComposicaoTab } from "./ComposicaoTab";
+import { SuplementacaoTab } from "./SuplementacaoTab";
+import { ExamesTab } from "./ExamesTab";
+
+const statusTone = { ativo: "success", pendente: "warning", inativo: "neutral" } as const;
+
+export default async function FichaPacientePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data: patient } = await supabase.from("patients").select("*").eq("id", id).single<Patient>();
+  if (!patient) notFound();
+
+  const [{ data: protocol }, { data: patientSupplements }, { data: catalog }, { data: exams }, { data: anthropometry }, { data: foods }, { data: presets }] = await Promise.all([
+    supabase
+      .from("protocols")
+      .select("*")
+      .eq("patient_id", id)
+      .eq("active", true)
+      .maybeSingle<Protocol>(),
+    supabase
+      .from("patient_supplements")
+      .select("*, supplement:supplements_catalog(*)")
+      .eq("patient_id", id)
+      .returns<PatientSupplement[]>(),
+    supabase.from("supplements_catalog").select("*").order("name").returns<SupplementCatalogItem[]>(),
+    supabase
+      .from("exams")
+      .select("*, results:exam_results(*)")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false })
+      .returns<(Exam & { results: ExamResult[] })[]>(),
+    supabase
+      .from("anthropometry_records")
+      .select("*")
+      .eq("patient_id", id)
+      .order("recorded_at", { ascending: false })
+      .returns<AnthropometryRecord[]>(),
+    supabase.from("foods_catalog").select("*").returns<FoodCatalogItem[]>(),
+    supabase.from("supplement_presets").select("*").order("name").returns<SupplementPreset[]>(),
+  ]);
+
+  const age = yearsSince(patient.birth_date);
+
+  return (
+    <div>
+      <div className="mb-1 flex flex-wrap items-center gap-3.5">
+        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-accent-soft font-display text-lg font-bold text-accent-strong">
+          {initials(patient.full_name)}
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold">{patient.full_name}</h1>
+          <p className="mt-0.5 flex items-center gap-2 text-sm text-[var(--ink-soft)]">
+            {age} anos
+            {patient.objective && <Badge tone="neutral">{patient.objective}</Badge>}
+            <Badge tone={statusTone[patient.status]}>{patient.status}</Badge>
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <Tabs
+          tabs={[
+            { id: "cadastro", label: "Cadastro Clínico", content: <CadastroTab patient={patient} /> },
+            { id: "composicao", label: "Composição Corporal", content: <ComposicaoTab patient={patient} records={anthropometry ?? []} /> },
+            {
+              id: "protocolo",
+              label: "Protocolo Alimentar",
+              content: (
+                <ProtocoloTab
+                  patient={patient}
+                  protocol={protocol}
+                  foods={foods ?? []}
+                  latestAnthropometry={anthropometry?.[0] ?? null}
+                />
+              ),
+            },
+            {
+              id: "supp",
+              label: "Suplementação",
+              content: (
+                <SuplementacaoTab
+                  patientId={patient.id}
+                  prescribed={patientSupplements ?? []}
+                  catalog={catalog ?? []}
+                  presets={presets ?? []}
+                />
+              ),
+            },
+            { id: "exames", label: "Exames", content: <ExamesTab patientId={patient.id} exams={exams ?? []} /> },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
+function initials(name: string) {
+  return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function yearsSince(dateStr: string) {
+  const birth = new Date(dateStr);
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age;
+}
