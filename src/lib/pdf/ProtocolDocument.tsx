@@ -2,8 +2,7 @@ import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/render
 import type { Patient, Protocol, Nutritionist, FoodCatalogItem } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
 import { findEquivalents } from "@/lib/diet/equivalents";
-
-const ITEM_PATTERN = /^(.+?)\s*\((\d+(?:\.\d+)?)\s*g\)$/;
+import { parseMealItems } from "@/lib/diet/mealItems";
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: "Helvetica", color: "#1B211D" },
@@ -32,6 +31,7 @@ const styles = StyleSheet.create({
   mealKcal: { fontSize: 8, color: "#5B6259" },
   mealItem: { fontSize: 9, marginTop: 1.5, marginLeft: 6 },
   mealItemGrams: { fontWeight: 700, color: "#1F4B3F" },
+  mealItemWarning: { fontWeight: 700, color: "#B5651D" },
   shoppingGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   shoppingItem: { fontSize: 9, width: "31%" },
   equivRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
@@ -46,18 +46,6 @@ const styles = StyleSheet.create({
     transform: "rotate(-30deg)",
   },
 });
-
-/** Quebra "Arroz (100 g) + Frango (150 g)" em itens separados, isolando a quantidade para destacar em negrito. */
-function splitMealItems(descricao: string): { name: string; grams: string | null }[] {
-  return descricao
-    .split("+")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const match = ITEM_PATTERN.exec(part);
-      return match ? { name: match[1], grams: match[2] } : { name: part, grams: null };
-    });
-}
 
 const DAY_LABELS: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo",
@@ -123,10 +111,14 @@ export function ProtocolDocument({
                         <Text style={styles.mealLabel}>{label}</Text>
                         <Text style={styles.mealKcal}>{meal.kcal} kcal</Text>
                       </View>
-                      {splitMealItems(meal.descricao).map((item, i) => (
+                      {parseMealItems(meal.descricao).map((item, i) => (
                         <Text key={i} style={styles.mealItem}>
                           • {item.name}
-                          {item.grams ? <Text style={styles.mealItemGrams}> — {item.grams} g</Text> : null}
+                          {item.grams ? (
+                            <Text style={styles.mealItemGrams}> — {item.grams} g</Text>
+                          ) : (
+                            <Text style={styles.mealItemWarning}> — quantidade não especificada</Text>
+                          )}
                         </Text>
                       ))}
                     </View>
@@ -188,13 +180,10 @@ function buildEquivalenceRows(protocol: Protocol, foods: FoodCatalogItem[]) {
     if (!day) continue;
     for (const meal of Object.values(day)) {
       if (!meal?.descricao) continue;
-      for (const part of meal.descricao.split("+")) {
-        const match = ITEM_PATTERN.exec(part.trim());
-        if (!match) continue;
-        const [, name, grams] = match;
-        if (seen.has(name)) continue;
-        const food = foods.find((f) => f.name === name);
-        if (food) seen.set(name, { food, grams: Number(grams) });
+      for (const item of parseMealItems(meal.descricao)) {
+        if (!item.grams || seen.has(item.name)) continue;
+        const food = foods.find((f) => f.name === item.name);
+        if (food) seen.set(item.name, { food, grams: Number(item.grams) });
       }
     }
   }

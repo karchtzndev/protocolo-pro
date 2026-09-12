@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { AnthropometryRecord, DayMenu, FoodCatalogItem, Patient, Protocol, WeeklyMenu } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
@@ -8,6 +8,7 @@ import { MEAL_PRESET_LIST, type MealPresetKey } from "@/lib/mealPresets";
 import { calculateEnergyEquations } from "@/lib/health/energyEquations";
 import { generateWeeklyMenu, SafeCalorieFloorError, type DietObjective } from "@/lib/diet/generateProtocol";
 import { buildShoppingListFromMenu } from "@/lib/diet/shoppingList";
+import { parseMealItems, serializeMealItems, type MealItem } from "@/lib/diet/mealItems";
 import { screenPatient, inferObjectiveFromText } from "@/lib/clinicalScreening";
 import { saveProtocol } from "./protocol-actions";
 
@@ -132,6 +133,7 @@ export function ProtocolEditorDialog({
     });
   }, []);
 
+  /** Adiciona um alimento do catálogo à célula, usando a porção usual dele como quantidade inicial — o profissional ajusta os gramas depois se quiser. */
   const substituteFood = useCallback((day: keyof WeeklyMenu, meal: keyof DayMenu, foodId: string) => {
     setWeeklyMenu((prev) => {
       const food = foods.find((f) => f.id === foodId);
@@ -139,19 +141,20 @@ export function ProtocolEditorDialog({
 
       const daySlots = prev[day] ?? {};
       const slot = daySlots[meal];
-      const targetKcal = slot?.kcal && slot.kcal > 0 ? slot.kcal : food.kcal_100g * (food.usual_portion_g / 100);
-      const grams = Math.max(5, Math.round(((targetKcal / food.kcal_100g) * 100) / 5) * 5);
+      const grams = food.usual_portion_g || 100;
+      const itemText = `${food.name} (${grams}g)`;
+      const descricao = slot?.descricao ? `${slot.descricao} + ${itemText}` : itemText;
 
       return {
         ...prev,
         [day]: {
           ...daySlots,
           [meal]: {
-            descricao: `${food.name} (${grams} g)`,
-            kcal: Math.round((food.kcal_100g * grams) / 100),
-            proteina_g: Math.round((food.protein_100g * grams) / 100),
-            carboidrato_g: Math.round((food.carb_100g * grams) / 100),
-            gordura_g: Math.round((food.fat_100g * grams) / 100),
+            descricao,
+            kcal: (slot?.kcal ?? 0) + Math.round((food.kcal_100g * grams) / 100),
+            proteina_g: (slot?.proteina_g ?? 0) + Math.round((food.protein_100g * grams) / 100),
+            carboidrato_g: (slot?.carboidrato_g ?? 0) + Math.round((food.carb_100g * grams) / 100),
+            gordura_g: (slot?.gordura_g ?? 0) + Math.round((food.fat_100g * grams) / 100),
           },
         },
       };
@@ -350,6 +353,9 @@ export function ProtocolEditorDialog({
   );
 }
 
+let mealItemRowCounter = 0;
+type MealItemRow = MealItem & { id: number };
+
 const MealCell = memo(function MealCell({
   day,
   meal,
@@ -365,15 +371,74 @@ const MealCell = memo(function MealCell({
   onUpdate: (day: keyof WeeklyMenu, meal: keyof DayMenu, field: "descricao" | "kcal", value: string) => void;
   onSubstitute: (day: keyof WeeklyMenu, meal: keyof DayMenu, foodId: string) => void;
 }) {
+  const [rows, setRows] = useState<MealItemRow[]>(() => toRows(parseMealItems(slot?.descricao)));
+  const lastEmitted = useRef<string>(slot?.descricao ?? "");
+
+  // Sincroniza quando a mudança vem de fora (substituição, preset, geração automática) —
+  // ignora quando a string recebida é exatamente a que esta célula acabou de emitir,
+  // pra não atropelar o que o usuário está digitando.
+  useEffect(() => {
+    const incoming = slot?.descricao ?? "";
+    if (incoming !== lastEmitted.current) {
+      setRows(toRows(parseMealItems(incoming)));
+      lastEmitted.current = incoming;
+    }
+  }, [slot?.descricao]);
+
+  function commit(newRows: MealItemRow[]) {
+    setRows(newRows);
+    const serialized = serializeMealItems(newRows);
+    lastEmitted.current = serialized;
+    onUpdate(day, meal, "descricao", serialized);
+  }
+
+  function updateRow(id: number, field: "name" | "grams", value: string) {
+    commit(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  }
+
+  function removeRow(id: number) {
+    commit(rows.filter((r) => r.id !== id));
+  }
+
+  function addRow() {
+    mealItemRowCounter += 1;
+    commit([...rows, { id: mealItemRowCounter, name: "", grams: "" }]);
+  }
+
+  const missingGrams = rows.some((r) => r.name.trim() && !r.grams.trim());
+
   return (
     <td className="border-t border-[var(--border-soft)] bg-[var(--surface)] px-2 py-2">
-      <textarea
-        value={slot?.descricao ?? ""}
-        onChange={(e) => onUpdate(day, meal, "descricao", e.target.value)}
-        rows={2}
-        className="mb-1 w-full resize-none rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
-        placeholder="Ex: Arroz integral (100g) + Frango grelhado (150g)"
-      />
+      <div className="mb-1 flex flex-col gap-1">
+        {rows.map((row) => (
+          <div key={row.id} className="flex gap-1">
+            <input
+              value={row.name}
+              onChange={(e) => updateRow(row.id, "name", e.target.value)}
+              placeholder="Alimento"
+              className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
+            />
+            <input
+              value={row.grams}
+              onChange={(e) => updateRow(row.id, "grams", e.target.value)}
+              placeholder="g"
+              inputMode="numeric"
+              className="w-11 shrink-0 rounded border border-[var(--border)] bg-[var(--surface-2)] px-1 py-1 text-[11px] outline-none focus:border-brand"
+            />
+            <button
+              type="button"
+              onClick={() => removeRow(row.id)}
+              className="shrink-0 px-0.5 text-[11px] text-[var(--ink-faint)] hover:text-danger"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={addRow} className="text-left text-[10.5px] font-semibold text-brand">
+          + alimento
+        </button>
+        {missingGrams && <span className="text-[10px] font-semibold text-warning">⚠ falta a quantidade (g)</span>}
+      </div>
       <input
         type="number"
         value={slot?.kcal ?? ""}
@@ -387,7 +452,7 @@ const MealCell = memo(function MealCell({
           onChange={(e) => e.target.value && onSubstitute(day, meal, e.target.value)}
           className="w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1 py-1 text-[10px] text-[var(--ink-soft)] outline-none focus:border-brand"
         >
-          <option value="">🔄 substituir…</option>
+          <option value="">🔄 adicionar do catálogo…</option>
           {foods.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
@@ -398,6 +463,13 @@ const MealCell = memo(function MealCell({
     </td>
   );
 });
+
+function toRows(items: MealItem[]): MealItemRow[] {
+  return items.map((item) => {
+    mealItemRowCounter += 1;
+    return { ...item, id: mealItemRowCounter };
+  });
+}
 
 function yearsSince(dateStr: string) {
   const birth = new Date(dateStr);
