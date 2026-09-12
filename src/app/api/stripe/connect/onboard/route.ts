@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
+import { createConnectAccountV2 } from "@/lib/stripeAccountsV2";
 
 /**
  * Cria (se ainda não existir) a conta Stripe Connect Standard do nutricionista
@@ -24,13 +25,11 @@ export async function POST() {
   let accountId = nutritionist?.stripe_connect_account_id as string | null;
 
   if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "standard",
+    accountId = await createConnectAccountV2({
       email: user.email,
-      business_profile: { name: nutritionist?.clinic_name ?? nutritionist?.full_name },
-      metadata: { nutritionist_id: user.id },
+      displayName: nutritionist?.clinic_name ?? nutritionist?.full_name ?? "Nutricionista",
+      nutritionistId: user.id,
     });
-    accountId = account.id;
     await supabase.from("nutritionists").update({ stripe_connect_account_id: accountId }).eq("id", user.id);
   }
 
