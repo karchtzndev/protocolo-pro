@@ -248,7 +248,12 @@ export function ProtocolEditorDialog({
               <NumField label="Cintura (cm)" name="waist_cm" defaultValue={protocol?.waist_cm ?? undefined} />
             </div>
 
-            <FieldLabel>Cardápio — 7 dias</FieldLabel>
+            <div className="mb-1.5 flex items-center justify-between">
+              <FieldLabel>Cardápio — 7 dias</FieldLabel>
+              <span className="text-[10.5px] text-[var(--ink-faint)]">
+                Sempre informe a quantidade em gramas de cada alimento — evita o paciente ficar perdido.
+              </span>
+            </div>
             <div className="mb-5 overflow-x-auto rounded-xl border border-[var(--border-soft)]">
               <table className="w-full border-collapse text-xs">
                 <thead>
@@ -366,7 +371,7 @@ const MealCell = memo(function MealCell({
         onChange={(e) => onUpdate(day, meal, "descricao", e.target.value)}
         rows={2}
         className="mb-1 w-full resize-none rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
-        placeholder="Descrição"
+        placeholder="Ex: Arroz integral (100g) + Frango grelhado (150g)"
       />
       <input
         type="number"

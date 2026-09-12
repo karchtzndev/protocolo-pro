@@ -1,5 +1,6 @@
 import type { AnthropometryRecord, Patient } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { calculateEnergyEquations, ACTIVITY_LEVEL_LABELS, type Sex, type ActivityLevel } from "@/lib/health/energyEquations";
 import { calculateSkinfoldProtocols } from "@/lib/health/skinfolds";
 import { calculateIndices } from "@/lib/health/indices";
@@ -12,7 +13,12 @@ export function ComposicaoTab({ patient, records }: { patient: Patient; records:
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-end gap-2">
+        {records.length > 0 && (
+          <a href={`/api/pdf/composicao/${patient.id}`} target="_blank" rel="noreferrer">
+            <Button variant="accent">⭳ Gerar PDF de composição corporal</Button>
+          </a>
+        )}
         <AnthropometryDialog patientId={patient.id} />
       </div>
 

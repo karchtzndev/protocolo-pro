@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import type { Patient, Protocol, Nutritionist, FoodCatalogItem } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
 import { findEquivalents } from "@/lib/diet/equivalents";
@@ -7,7 +7,16 @@ const ITEM_PATTERN = /^(.+?)\s*\((\d+(?:\.\d+)?)\s*g\)$/;
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: "Helvetica", color: "#1B211D" },
-  header: { marginBottom: 18, borderBottom: "2px solid #1F4B3F", paddingBottom: 10 },
+  header: {
+    marginBottom: 18,
+    borderBottomWidth: 2,
+    borderBottomStyle: "solid",
+    borderBottomColor: "#1F4B3F",
+    paddingBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  logo: { width: 40, height: 40, marginRight: 10, objectFit: "contain" },
   clinic: { fontSize: 9, color: "#5B6259" },
   title: { fontSize: 18, fontWeight: 700, marginTop: 2 },
   sectionTitle: { fontSize: 12, fontWeight: 700, marginTop: 16, marginBottom: 6, color: "#1F4B3F" },
@@ -17,7 +26,12 @@ const styles = StyleSheet.create({
   tileLabel: { fontSize: 7, color: "#5B6259", marginTop: 2 },
   dayBlock: { marginBottom: 8, border: "1px solid #E9E5D8", borderRadius: 6, padding: 8 },
   dayName: { fontSize: 10, fontWeight: 700, marginBottom: 4, textTransform: "uppercase" },
-  meal: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 },
+  mealBlock: { marginBottom: 5 },
+  mealHeaderRow: { flexDirection: "row", justifyContent: "space-between" },
+  mealLabel: { fontSize: 9, fontWeight: 700 },
+  mealKcal: { fontSize: 8, color: "#5B6259" },
+  mealItem: { fontSize: 9, marginTop: 1.5, marginLeft: 6 },
+  mealItemGrams: { fontWeight: 700, color: "#1F4B3F" },
   shoppingGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   shoppingItem: { fontSize: 9, width: "31%" },
   equivRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
@@ -32,6 +46,18 @@ const styles = StyleSheet.create({
     transform: "rotate(-30deg)",
   },
 });
+
+/** Quebra "Arroz (100 g) + Frango (150 g)" em itens separados, isolando a quantidade para destacar em negrito. */
+function splitMealItems(descricao: string): { name: string; grams: string | null }[] {
+  return descricao
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const match = ITEM_PATTERN.exec(part);
+      return match ? { name: match[1], grams: match[2] } : { name: part, grams: null };
+    });
+}
 
 const DAY_LABELS: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo",
@@ -60,9 +86,17 @@ export function ProtocolDocument({
       <Page size="A4" style={styles.page}>
         {protocol?.is_draft && <Text style={styles.watermark}>RASCUNHO</Text>}
 
-        <View style={styles.header}>
-          <Text style={styles.clinic}>{nutritionist.clinic_name ?? nutritionist.full_name} · {nutritionist.clinic_phone ?? ""}</Text>
-          <Text style={styles.title}>Protocolo alimentar — {patient.full_name}</Text>
+        <View
+          style={[
+            styles.header,
+            nutritionist.brand_primary_color ? { borderBottomColor: nutritionist.brand_primary_color } : {},
+          ]}
+        >
+          {nutritionist.logo_url && <Image src={nutritionist.logo_url} style={styles.logo} />}
+          <View>
+            <Text style={styles.clinic}>{nutritionist.clinic_name ?? nutritionist.full_name} · {nutritionist.clinic_phone ?? ""}</Text>
+            <Text style={styles.title}>Protocolo alimentar — {patient.full_name}</Text>
+          </View>
         </View>
 
         {protocol && (
@@ -84,9 +118,17 @@ export function ProtocolDocument({
                   const meal = menu?.[mealKey];
                   if (!meal) return null;
                   return (
-                    <View key={mealKey} style={styles.meal}>
-                      <Text>{label}: {meal.descricao}</Text>
-                      <Text>{meal.kcal} kcal</Text>
+                    <View key={mealKey} style={styles.mealBlock}>
+                      <View style={styles.mealHeaderRow}>
+                        <Text style={styles.mealLabel}>{label}</Text>
+                        <Text style={styles.mealKcal}>{meal.kcal} kcal</Text>
+                      </View>
+                      {splitMealItems(meal.descricao).map((item, i) => (
+                        <Text key={i} style={styles.mealItem}>
+                          • {item.name}
+                          {item.grams ? <Text style={styles.mealItemGrams}> — {item.grams} g</Text> : null}
+                        </Text>
+                      ))}
                     </View>
                   );
                 })}
