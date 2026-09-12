@@ -104,6 +104,7 @@ export function ProtocolEditorDialog({
         preferredFoodIds: preferredFoodIds.length ? new Set(preferredFoodIds) : undefined,
       });
       setWeeklyMenu(result.weekly_menu);
+      setShoppingList(buildShoppingListFromMenu(result.weekly_menu).join("\n"));
       setActivePreset(null);
       setGenerationSummary(
         `Gerado com base em ${mifflin.tdeeKcal} kcal de gasto (Mifflin-St Jeor) — meta de ${result.target_kcal_per_day} kcal/dia · ${result.macro_targets.protein_g}g proteína · ${result.macro_targets.carb_g}g carboidrato · ${result.macro_targets.fat_g}g gordura.` +

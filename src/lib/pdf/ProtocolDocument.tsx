@@ -179,7 +179,7 @@ export function ProtocolDocument({
   );
 }
 
-/** Extrai até 4 alimentos únicos usados no cardápio e monta equivalências para cada um. */
+/** Extrai todos os alimentos únicos usados no cardápio e monta equivalências para cada um. */
 function buildEquivalenceRows(protocol: Protocol, foods: FoodCatalogItem[]) {
   if (!foods.length) return [];
 
@@ -200,7 +200,6 @@ function buildEquivalenceRows(protocol: Protocol, foods: FoodCatalogItem[]) {
   }
 
   return Array.from(seen.values())
-    .slice(0, 4)
     .map(({ food, grams }) => ({
       reference: `${food.name} (${grams} g)`,
       rows: findEquivalents(food, foods, grams, 3),

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/Card";
-import type { AuditLogEntry } from "@/lib/types";
+import type { AuditLogEntry, Exam } from "@/lib/types";
 
 const REASSESSMENT_STALE_DAYS = 60;
+const EXAM_STALE_DAYS = 180;
 
 const ACTION_LABELS: Record<string, string> = {
   "paciente.arquivar": "Paciente arquivado",
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
     { data: activePatients },
     { data: anthropometryDates },
     { data: upcomingAppointments },
+    { data: examDates },
   ] = await Promise.all([
     supabase.from("patients").select("*", { count: "exact", head: true }),
     supabase.from("protocols").select("*", { count: "exact", head: true }).eq("active", true),
@@ -57,6 +59,11 @@ export default async function DashboardPage() {
       .gte("scheduled_at", new Date().toISOString())
       .lte("scheduled_at", new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString())
       .order("scheduled_at", { ascending: true }),
+    supabase
+      .from("exams")
+      .select("patient_id, exam_date, created_at")
+      .order("created_at", { ascending: false })
+      .returns<Pick<Exam, "patient_id" | "exam_date" | "created_at">[]>(),
   ]);
 
   const latestAssessmentByPatient = new Map<string, string>();
@@ -71,6 +78,24 @@ export default async function DashboardPage() {
     const days = Math.floor((Date.now() - new Date(latest).getTime()) / (1000 * 60 * 60 * 24));
     return days > REASSESSMENT_STALE_DAYS;
   });
+
+  // Só entra na lista quem já tem histórico de exame — paciente sem
+  // necessidade de laboratório não deve ser cobrado por isso.
+  const latestExamByPatient = new Map<string, string>();
+  for (const exam of examDates ?? []) {
+    const effectiveDate = exam.exam_date ?? exam.created_at;
+    const current = latestExamByPatient.get(exam.patient_id);
+    if (!current || new Date(effectiveDate) > new Date(current)) {
+      latestExamByPatient.set(exam.patient_id, effectiveDate);
+    }
+  }
+  const staleExams = (activePatients ?? [])
+    .filter((p) => latestExamByPatient.has(p.id))
+    .filter((p) => {
+      const latest = latestExamByPatient.get(p.id)!;
+      const days = Math.floor((Date.now() - new Date(latest).getTime()) / (1000 * 60 * 60 * 24));
+      return days > EXAM_STALE_DAYS;
+    });
 
   const firstName = nutritionist?.full_name?.split(" ")[0] ?? "";
   const today = new Intl.DateTimeFormat("pt-BR", {
@@ -96,8 +121,8 @@ export default async function DashboardPage() {
         <StatCard label="Plano" value={nutritionist?.plan === "clinica" ? "Clínica" : "Solo"} isText />
       </div>
 
-      {(staleReassessments.length > 0 || (upcomingAppointments ?? []).length > 0) && (
-        <div className="mb-6 grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+      {(staleReassessments.length > 0 || staleExams.length > 0 || (upcomingAppointments ?? []).length > 0) && (
+        <div className="mb-6 grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
           {staleReassessments.length > 0 && (
             <Card>
               <div className="border-b border-[var(--border-soft)] px-5 py-3.5">
@@ -111,6 +136,26 @@ export default async function DashboardPage() {
                     </Link>
                     <span className="ml-1.5 text-xs text-[var(--ink-soft)]">
                       {latestAssessmentByPatient.has(p.id) ? `há mais de ${REASSESSMENT_STALE_DAYS} dias` : "nunca aferido"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          {staleExams.length > 0 && (
+            <Card>
+              <div className="border-b border-[var(--border-soft)] px-5 py-3.5">
+                <h3 className="text-sm font-semibold">🧪 Exame laboratorial vencido ({staleExams.length})</h3>
+              </div>
+              <ul className="px-5 py-2">
+                {staleExams.slice(0, 5).map((p) => (
+                  <li key={p.id} className="border-b border-dashed border-[var(--border-soft)] py-2 text-sm last:border-none">
+                    <Link href={`/pacientes/${p.id}`} className="hover:underline">
+                      {p.full_name}
+                    </Link>
+                    <span className="ml-1.5 text-xs text-[var(--ink-soft)]">
+                      último exame há mais de {EXAM_STALE_DAYS} dias
                     </span>
                   </li>
                 ))}
