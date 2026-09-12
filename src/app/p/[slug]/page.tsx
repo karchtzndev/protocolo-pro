@@ -1,7 +1,17 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { Patient, PatientLink, Protocol, PatientSupplement, Nutritionist, AnamnesisResponse, FoodCatalogItem } from "@/lib/types";
+import type {
+  Patient,
+  PatientLink,
+  Protocol,
+  PatientSupplement,
+  Nutritionist,
+  AnamnesisResponse,
+  FoodCatalogItem,
+  SubscriptionPlan,
+  PatientSubscription,
+} from "@/lib/types";
 import { PatientGate } from "./PatientGate";
 import { PatientOverview } from "./PatientOverview";
 
@@ -32,28 +42,41 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
     );
   }
 
-  const [{ data: protocol }, { data: supplements }, { data: pendingAnamnesis }, { data: foods }] = await Promise.all([
-    supabase
-      .from("protocols")
-      .select("*")
-      .eq("patient_id", link.patient.id)
-      .eq("active", true)
-      .maybeSingle<Protocol>(),
-    supabase
-      .from("patient_supplements")
-      .select("*, supplement:supplements_catalog(*)")
-      .eq("patient_id", link.patient.id)
-      .returns<PatientSupplement[]>(),
-    supabase
-      .from("anamnesis_responses")
-      .select("*")
-      .eq("patient_id", link.patient.id)
-      .eq("status", "pendente")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<AnamnesisResponse>(),
-    supabase.from("foods_catalog").select("*").returns<FoodCatalogItem[]>(),
-  ]);
+  const [{ data: protocol }, { data: supplements }, { data: pendingAnamnesis }, { data: foods }, { data: plans }, { data: subscription }] =
+    await Promise.all([
+      supabase
+        .from("protocols")
+        .select("*")
+        .eq("patient_id", link.patient.id)
+        .eq("active", true)
+        .maybeSingle<Protocol>(),
+      supabase
+        .from("patient_supplements")
+        .select("*, supplement:supplements_catalog(*)")
+        .eq("patient_id", link.patient.id)
+        .returns<PatientSupplement[]>(),
+      supabase
+        .from("anamnesis_responses")
+        .select("*")
+        .eq("patient_id", link.patient.id)
+        .eq("status", "pendente")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<AnamnesisResponse>(),
+      supabase.from("foods_catalog").select("*").returns<FoodCatalogItem[]>(),
+      supabase
+        .from("subscription_plans")
+        .select("*")
+        .eq("nutritionist_id", link.patient.nutritionist.id)
+        .eq("active", true)
+        .returns<SubscriptionPlan[]>(),
+      supabase
+        .from("patient_subscriptions")
+        .select("*, plan:subscription_plans(*)")
+        .eq("patient_id", link.patient.id)
+        .in("status", ["trialing", "active", "past_due"])
+        .maybeSingle<PatientSubscription>(),
+    ]);
 
   return (
     <PatientOverview
@@ -64,6 +87,8 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
       slug={slug}
       pendingAnamnesis={pendingAnamnesis}
       foods={foods ?? []}
+      plans={plans ?? []}
+      subscription={subscription}
     />
   );
 }

@@ -44,7 +44,37 @@ export interface Nutritionist {
   subscription_status: "trialing" | "active" | "past_due" | "canceled";
   plan: "solo" | "clinica";
   booking_slug: string | null;
+  stripe_connect_account_id: string | null;
+  stripe_connect_onboarded: boolean;
   created_at: string;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  nutritionist_id: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  interval: "month" | "quarter";
+  stripe_product_id: string | null;
+  stripe_price_id: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+export type PatientSubscriptionStatus = "incomplete" | "trialing" | "active" | "past_due" | "canceled";
+
+export interface PatientSubscription {
+  id: string;
+  patient_id: string;
+  plan_id: string;
+  nutritionist_id: string;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
+  status: PatientSubscriptionStatus;
+  current_period_end: string | null;
+  created_at: string;
+  plan?: SubscriptionPlan;
 }
 
 export interface CrmStage {

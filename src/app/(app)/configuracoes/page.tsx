@@ -1,11 +1,14 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import type { Nutritionist, AccountDeletionRequest, AuditLogEntry } from "@/lib/types";
 import { updateProfile, updateBrand } from "./actions";
 import { BillingButtons } from "./BillingButtons";
+import { ConnectStripeButton } from "./ConnectStripeButton";
 import { LgpdSection } from "./LgpdSection";
 import { LogoUpload } from "./LogoUpload";
 import { meetsWcagAA } from "@/lib/colorContrast";
+import { syncConnectStatus } from "./connectSync";
 
 const ACTION_LABELS: Record<string, string> = {
   "paciente.arquivar": "Paciente arquivado",
@@ -30,6 +33,11 @@ export default async function ConfiguracoesPage() {
   const { data: n } = await supabase.from("nutritionists").select("*").eq("id", user!.id).single<Nutritionist>();
 
   if (!n) return null;
+
+  if (n.stripe_connect_account_id && !n.stripe_connect_onboarded) {
+    const onboarded = await syncConnectStatus(n.id, n.stripe_connect_account_id);
+    n.stripe_connect_onboarded = onboarded;
+  }
 
   const [{ data: pendingDeletion }, { data: auditLog }] = await Promise.all([
     supabase
@@ -82,6 +90,34 @@ export default async function ConfiguracoesPage() {
           <Badge tone={n.subscription_status === "active" ? "success" : "warning"}>{n.subscription_status}</Badge>
         </div>
         <BillingButtons hasSubscription={!!n.stripe_subscription_id} currentPlan={n.plan} />
+      </Section>
+
+      <Section title="Faturamento de pacientes">
+        <p className="mb-3 text-sm text-[var(--ink-soft)]">
+          Conecte sua própria conta Stripe para vender planos de acompanhamento recorrentes aos seus pacientes. O
+          dinheiro cai direto na sua conta — o Protocolo.Pro nunca fica no meio.
+        </p>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-2)] px-4 py-3 text-sm">
+          <span>🏦</span>
+          <span className="text-[var(--ink-soft)]">
+            {n.stripe_connect_onboarded
+              ? "Conta Stripe conectada"
+              : n.stripe_connect_account_id
+                ? "Onboarding iniciado, mas incompleto"
+                : "Nenhuma conta conectada"}
+          </span>
+          <Badge tone={n.stripe_connect_onboarded ? "success" : "warning"}>
+            {n.stripe_connect_onboarded ? "ativo" : "pendente"}
+          </Badge>
+          <div className="ml-auto flex gap-2">
+            {!n.stripe_connect_onboarded && <ConnectStripeButton label={n.stripe_connect_account_id ? "Concluir conexão" : "Conectar Stripe"} />}
+            {n.stripe_connect_onboarded && (
+              <Link href="/planos" className="text-xs font-bold text-brand underline">
+                Gerenciar planos de acompanhamento →
+              </Link>
+            )}
+          </div>
+        </div>
       </Section>
 
       <Section title="Documentos legais">
