@@ -2,14 +2,14 @@ import type { Patient } from "@/lib/types";
 import { ArchivePatientButton } from "./ArchivePatientButton";
 import { ClinicalScreeningPanel } from "./ClinicalScreeningPanel";
 
-export function CadastroTab({ patient }: { patient: Patient }) {
+export function CadastroTab({ patient, enabledModules }: { patient: Patient; enabledModules: string[] }) {
   return (
     <div>
       <div className="mb-4 flex justify-end">
         <ArchivePatientButton patientId={patient.id} status={patient.status} />
       </div>
 
-      <ClinicalScreeningPanel patient={patient} />
+      {enabledModules.includes("clinico") && <ClinicalScreeningPanel patient={patient} />}
 
       <div className="mb-4 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
         <ReadField label="Nascimento" value={new Date(patient.birth_date).toLocaleDateString("pt-BR")} />

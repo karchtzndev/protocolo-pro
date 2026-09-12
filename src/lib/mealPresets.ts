@@ -6,6 +6,7 @@ export interface MealPreset {
   key: MealPresetKey;
   label: string;
   description: string;
+  module: "geral" | "esportiva" | "materno_infantil";
   weekly_menu: WeeklyMenu;
   shopping_list: string[];
   guidance: string[];
@@ -33,6 +34,7 @@ export const MEAL_PRESETS: Record<MealPresetKey, MealPreset> = {
   gravidez: {
     key: "gravidez",
     label: "Gravidez",
+    module: "materno_infantil",
     description: "Aporte extra de ferro, ácido fólico, cálcio e proteína para a gestação.",
     weekly_menu: buildWeek({
       cafe_da_manha: [
@@ -74,6 +76,7 @@ export const MEAL_PRESETS: Record<MealPresetKey, MealPreset> = {
   amamentacao: {
     key: "amamentacao",
     label: "Amamentação",
+    module: "materno_infantil",
     description: "Calorias e líquidos extras para sustentar a produção de leite.",
     weekly_menu: buildWeek({
       cafe_da_manha: [
@@ -115,6 +118,7 @@ export const MEAL_PRESETS: Record<MealPresetKey, MealPreset> = {
   hipertrofia: {
     key: "hipertrofia",
     label: "Hipertrofia",
+    module: "esportiva",
     description: "Superávit calórico moderado com alta ingestão de proteína para ganho de massa magra.",
     weekly_menu: buildWeek({
       cafe_da_manha: [
@@ -156,6 +160,7 @@ export const MEAL_PRESETS: Record<MealPresetKey, MealPreset> = {
   emagrecimento: {
     key: "emagrecimento",
     label: "Emagrecimento",
+    module: "geral",
     description: "Déficit calórico controlado, rico em fibras e proteína para preservar massa magra.",
     weekly_menu: buildWeek({
       cafe_da_manha: [

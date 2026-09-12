@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import type { Nutritionist, AccountDeletionRequest, AuditLogEntry } from "@/lib/types";
-import { updateProfile, updateBrand } from "./actions";
+import { updateProfile, updateBrand, updateModules } from "./actions";
 import { BillingButtons } from "./BillingButtons";
 import { ConnectStripeButton } from "./ConnectStripeButton";
 import { LgpdSection } from "./LgpdSection";
@@ -80,6 +80,38 @@ export default async function ConfiguracoesPage() {
           <ColorField label="Cor primária" name="brand_primary_color" defaultValue={n.brand_primary_color} />
           <ColorField label="Cor de destaque" name="brand_accent_color" defaultValue={n.brand_accent_color} />
           <SubmitRow />
+        </form>
+      </Section>
+
+      <Section title="Módulos de atendimento">
+        <p className="mb-3 text-sm text-[var(--ink-soft)]">
+          Ative só os nichos que você atende — os presets, alertas e campos dos demais ficam escondidos para deixar a
+          tela mais limpa.
+        </p>
+        <form action={updateModules} className="flex flex-col gap-2.5">
+          <ModuleCheckbox
+            value="esportiva"
+            label="Nutrição esportiva"
+            description="Preset de hipertrofia no editor de protocolo."
+            checked={n.enabled_modules.includes("esportiva")}
+          />
+          <ModuleCheckbox
+            value="materno_infantil"
+            label="Materno-infantil"
+            description="Presets de gravidez/amamentação e sugestões para gestantes/lactantes."
+            checked={n.enabled_modules.includes("materno_infantil")}
+          />
+          <ModuleCheckbox
+            value="clinico"
+            label="Clínico avançado"
+            description="Triagem clínica de risco e fórmulas manipuladas com checagem de interações."
+            checked={n.enabled_modules.includes("clinico")}
+          />
+          <div className="mt-1">
+            <button className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-on hover:brightness-110">
+              Salvar módulos
+            </button>
+          </div>
         </form>
       </Section>
 
@@ -195,6 +227,28 @@ function ColorField({ label, name, defaultValue }: { label: string; name: string
           <span className="text-[11px] font-semibold text-warning">⚠ contraste baixo em fundo branco</span>
         )}
       </div>
+    </label>
+  );
+}
+
+function ModuleCheckbox({
+  value,
+  label,
+  description,
+  checked,
+}: {
+  value: string;
+  label: string;
+  description: string;
+  checked: boolean;
+}) {
+  return (
+    <label className="flex items-start gap-3 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-2)] p-3">
+      <input type="checkbox" name="modules" value={value} defaultChecked={checked} className="mt-0.5" />
+      <span>
+        <span className="block text-sm font-semibold">{label}</span>
+        <span className="block text-xs text-[var(--ink-soft)]">{description}</span>
+      </span>
     </label>
   );
 }

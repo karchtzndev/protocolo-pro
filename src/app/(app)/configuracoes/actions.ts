@@ -41,6 +41,18 @@ export async function updateBrand(formData: FormData) {
   revalidatePath("/configuracoes");
 }
 
+export async function updateModules(formData: FormData) {
+  const user = await requireActiveSubscription();
+  const supabase = await createClient();
+
+  const enabledModules = formData.getAll("modules").map(String);
+
+  await supabase.from("nutritionists").update({ enabled_modules: enabledModules }).eq("id", user.id);
+
+  revalidatePath("/configuracoes");
+  revalidatePath("/pacientes");
+}
+
 export async function updateLogoUrl(logoUrl: string) {
   const user = await requireActiveSubscription();
   const supabase = await createClient();

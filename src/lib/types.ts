@@ -46,6 +46,33 @@ export interface Nutritionist {
   booking_slug: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarded: boolean;
+  enabled_modules: NutritionModule[];
+  created_at: string;
+}
+
+export type NutritionModule = "esportiva" | "materno_infantil" | "clinico";
+
+export interface FormulaIngredient {
+  name: string;
+  dose: number;
+  unit: string;
+}
+
+export interface SubstanceInteraction {
+  id: string;
+  substance_a: string;
+  substance_b: string;
+  severity: "leve" | "moderada" | "grave";
+  description: string;
+}
+
+export interface CompoundedFormula {
+  id: string;
+  nutritionist_id: string;
+  patient_id: string;
+  name: string;
+  ingredients: FormulaIngredient[];
+  interaction_warnings: string[];
   created_at: string;
 }
 

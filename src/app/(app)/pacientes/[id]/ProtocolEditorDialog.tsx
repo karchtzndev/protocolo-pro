@@ -30,6 +30,7 @@ export function ProtocolEditorDialog({
   latestAnthropometry,
   preferredFoodIds,
   excludedFoodNames,
+  enabledModules,
 }: {
   patient: Patient;
   protocol: Protocol | null;
@@ -37,7 +38,9 @@ export function ProtocolEditorDialog({
   latestAnthropometry: AnthropometryRecord | null;
   preferredFoodIds: string[];
   excludedFoodNames: string[];
+  enabledModules: string[];
 }) {
+  const visiblePresets = MEAL_PRESET_LIST.filter((p) => p.module === "geral" || enabledModules.includes(p.module));
   const [open, setOpen] = useState(false);
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu>(protocol?.weekly_menu ?? {});
   const [shoppingList, setShoppingList] = useState((protocol?.shopping_list ?? []).join("\n"));
@@ -180,7 +183,7 @@ export function ProtocolEditorDialog({
 
             <FieldLabel>Modelo predefinido</FieldLabel>
             <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {MEAL_PRESET_LIST.map((preset) => {
+              {visiblePresets.map((preset) => {
                 const suggested =
                   patient.clinical_flags.includes("gestante_lactante") &&
                   (preset.key === "gravidez" || preset.key === "amamentacao");

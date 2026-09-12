@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
-import type { Patient, Protocol, PatientSupplement, Exam, ExamResult, AnthropometryRecord, FoodCatalogItem, SupplementCatalogItem, SupplementPreset, Appointment, AnamnesisResponse } from "@/lib/types";
+import type { Patient, Protocol, PatientSupplement, Exam, ExamResult, AnthropometryRecord, FoodCatalogItem, SupplementCatalogItem, SupplementPreset, Appointment, AnamnesisResponse, CompoundedFormula } from "@/lib/types";
 import { CadastroTab } from "./CadastroTab";
 import { ProtocoloTab } from "./ProtocoloTab";
 import { ComposicaoTab } from "./ComposicaoTab";
@@ -19,7 +19,14 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", id).single<Patient>();
   if (!patient) notFound();
 
-  const [{ data: protocol }, { data: patientSupplements }, { data: catalog }, { data: exams }, { data: anthropometry }, { data: foods }, { data: presets }, { data: protocolHistory }, { data: appointments }, { data: anamnesisResponses }] = await Promise.all([
+  const { data: nutritionist } = await supabase
+    .from("nutritionists")
+    .select("enabled_modules")
+    .eq("id", patient.nutritionist_id)
+    .single();
+  const enabledModules = nutritionist?.enabled_modules ?? [];
+
+  const [{ data: protocol }, { data: patientSupplements }, { data: catalog }, { data: exams }, { data: anthropometry }, { data: foods }, { data: presets }, { data: protocolHistory }, { data: appointments }, { data: anamnesisResponses }, { data: formulas }] = await Promise.all([
     supabase
       .from("protocols")
       .select("*")
@@ -64,6 +71,12 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
       .select("*")
       .eq("patient_id", id)
       .returns<AnamnesisResponse[]>(),
+    supabase
+      .from("compounded_formulas")
+      .select("*")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false })
+      .returns<CompoundedFormula[]>(),
   ]);
 
   const age = yearsSince(patient.birth_date);
@@ -97,7 +110,7 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
       <div className="mt-6">
         <Tabs
           tabs={[
-            { id: "cadastro", label: "Cadastro Clínico", content: <CadastroTab patient={patient} /> },
+            { id: "cadastro", label: "Cadastro Clínico", content: <CadastroTab patient={patient} enabledModules={enabledModules} /> },
             { id: "composicao", label: "Composição Corporal", content: <ComposicaoTab patient={patient} records={anthropometry ?? []} /> },
             {
               id: "protocolo",
@@ -111,6 +124,7 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
                   history={protocolHistory ?? []}
                   preferredFoodIds={preferredFoodIds}
                   excludedFoodNames={excludedFoodNames}
+                  enabledModules={enabledModules}
                 />
               ),
             },
@@ -124,6 +138,8 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
                   prescribed={patientSupplements ?? []}
                   catalog={catalog ?? []}
                   presets={presets ?? []}
+                  formulas={formulas ?? []}
+                  formulasEnabled={enabledModules.includes("clinico")}
                 />
               ),
             },

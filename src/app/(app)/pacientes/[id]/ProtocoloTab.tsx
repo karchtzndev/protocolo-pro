@@ -30,6 +30,7 @@ export function ProtocoloTab({
   history,
   preferredFoodIds,
   excludedFoodNames,
+  enabledModules,
 }: {
   patient: Patient;
   protocol: Protocol | null;
@@ -38,6 +39,7 @@ export function ProtocoloTab({
   history: Protocol[];
   preferredFoodIds: string[];
   excludedFoodNames: string[];
+  enabledModules: string[];
 }) {
   if (!protocol) {
     return (
@@ -53,6 +55,7 @@ export function ProtocoloTab({
             latestAnthropometry={latestAnthropometry}
             preferredFoodIds={preferredFoodIds}
             excludedFoodNames={excludedFoodNames}
+            enabledModules={enabledModules}
           />
         </div>
         <ProtocolHistory history={history} />
@@ -81,6 +84,7 @@ export function ProtocoloTab({
           latestAnthropometry={latestAnthropometry}
           preferredFoodIds={preferredFoodIds}
           excludedFoodNames={excludedFoodNames}
+          enabledModules={enabledModules}
         />
       </div>
 
