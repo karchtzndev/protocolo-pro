@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // pdf-parse depende de um binário nativo (@napi-rs/canvas) — precisa ficar
-  // de fora do bundle webpack e ser rastreado como pacote externo pela
-  // função serverless da Vercel, senão falha em runtime mesmo com build ok.
-  serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
+  // pdf-parse depende de um binário nativo (@napi-rs/canvas), e pdfkit
+  // (usado por @react-pdf/renderer) carrega as fontes padrão (.afm/.cjs) via
+  // caminho calculado em runtime — o rastreamento de arquivos do Next não
+  // detecta isso e a função serverless da Vercel falha com "Cannot find
+  // module .../pdfkit/js/standard-fonts/Helvetica.cjs". Declarar como pacote
+  // externo faz a Vercel incluir o diretório inteiro em vez de rastrear.
+  serverExternalPackages: ["pdf-parse", "@napi-rs/canvas", "pdfkit", "@react-pdf/renderer"],
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
