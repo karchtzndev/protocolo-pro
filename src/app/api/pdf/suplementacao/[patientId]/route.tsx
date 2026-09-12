@@ -21,14 +21,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
     .eq("patient_id", patientId)
     .returns<PatientSupplement[]>();
 
-  const buffer = await renderToBuffer(
-    <SupplementDocument patient={patient} supplements={supplements ?? []} nutritionist={patient.nutritionist} />
-  );
+  try {
+    const buffer = await renderToBuffer(
+      <SupplementDocument patient={patient} supplements={supplements ?? []} nutritionist={patient.nutritionist} />
+    );
 
-  return new Response(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="suplementacao-${patient.full_name.replace(/\s+/g, "-").toLowerCase()}.pdf"`,
-    },
-  });
+    return new Response(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="suplementacao-${patient.full_name.replace(/\s+/g, "-").toLowerCase()}.pdf"`,
+      },
+    });
+  } catch (err) {
+    console.error("Falha ao gerar PDF de suplementação:", err);
+    return new Response(`Falha ao gerar PDF: ${err instanceof Error ? err.stack ?? err.message : String(err)}`, {
+      status: 500,
+    });
+  }
 }

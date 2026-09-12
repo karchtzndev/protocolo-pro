@@ -24,14 +24,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
 
   const { data: foods } = await supabase.from("foods_catalog").select("*").returns<FoodCatalogItem[]>();
 
-  const buffer = await renderToBuffer(
-    <ProtocolDocument patient={patient} protocol={protocol} nutritionist={patient.nutritionist} foods={foods ?? []} />
-  );
+  try {
+    const buffer = await renderToBuffer(
+      <ProtocolDocument patient={patient} protocol={protocol} nutritionist={patient.nutritionist} foods={foods ?? []} />
+    );
 
-  return new Response(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="protocolo-${patient.full_name.replace(/\s+/g, "-").toLowerCase()}.pdf"`,
-    },
-  });
+    return new Response(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="protocolo-${patient.full_name.replace(/\s+/g, "-").toLowerCase()}.pdf"`,
+      },
+    });
+  } catch (err) {
+    console.error("Falha ao gerar PDF do protocolo:", err);
+    return new Response(`Falha ao gerar PDF: ${err instanceof Error ? err.stack ?? err.message : String(err)}`, {
+      status: 500,
+    });
+  }
 }

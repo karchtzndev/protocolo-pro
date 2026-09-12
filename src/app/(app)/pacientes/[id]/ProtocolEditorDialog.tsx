@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { AnthropometryRecord, DayMenu, FoodCatalogItem, Patient, Protocol, WeeklyMenu } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
@@ -111,7 +111,7 @@ export function ProtocolEditorDialog({
     }
   }
 
-  function updateSlot(day: keyof WeeklyMenu, meal: keyof DayMenu, field: "descricao" | "kcal", value: string) {
+  const updateSlot = useCallback((day: keyof WeeklyMenu, meal: keyof DayMenu, field: "descricao" | "kcal", value: string) => {
     setWeeklyMenu((prev) => {
       const daySlots = prev[day] ?? {};
       const slot = daySlots[meal] ?? { descricao: "", kcal: 0 };
@@ -126,13 +126,13 @@ export function ProtocolEditorDialog({
         },
       };
     });
-  }
+  }, []);
 
-  function substituteFood(day: keyof WeeklyMenu, meal: keyof DayMenu, foodId: string) {
-    const food = foods.find((f) => f.id === foodId);
-    if (!food) return;
-
+  const substituteFood = useCallback((day: keyof WeeklyMenu, meal: keyof DayMenu, foodId: string) => {
     setWeeklyMenu((prev) => {
+      const food = foods.find((f) => f.id === foodId);
+      if (!food) return prev;
+
       const daySlots = prev[day] ?? {};
       const slot = daySlots[meal];
       const targetKcal = slot?.kcal && slot.kcal > 0 ? slot.kcal : food.kcal_100g * (food.usual_portion_g / 100);
@@ -152,7 +152,7 @@ export function ProtocolEditorDialog({
         },
       };
     });
-  }
+  }, [foods]);
 
   return (
     <>
@@ -269,41 +269,17 @@ export function ProtocolEditorDialog({
                       <td className="sticky left-0 whitespace-nowrap border-t border-[var(--border-soft)] bg-[var(--surface-2)] px-2 py-2 font-bold">
                         {meal.label}
                       </td>
-                      {DAYS.map((d) => {
-                        const slot = weeklyMenu[d.key]?.[meal.key];
-                        return (
-                          <td key={d.key} className="border-t border-[var(--border-soft)] bg-[var(--surface)] px-2 py-2">
-                            <textarea
-                              value={slot?.descricao ?? ""}
-                              onChange={(e) => updateSlot(d.key, meal.key, "descricao", e.target.value)}
-                              rows={2}
-                              className="mb-1 w-full resize-none rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
-                              placeholder="Descrição"
-                            />
-                            <input
-                              type="number"
-                              value={slot?.kcal ?? ""}
-                              onChange={(e) => updateSlot(d.key, meal.key, "kcal", e.target.value)}
-                              className="mb-1 w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
-                              placeholder="kcal"
-                            />
-                            {foods.length > 0 && (
-                              <select
-                                value=""
-                                onChange={(e) => e.target.value && substituteFood(d.key, meal.key, e.target.value)}
-                                className="w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1 py-1 text-[10px] text-[var(--ink-soft)] outline-none focus:border-brand"
-                              >
-                                <option value="">🔄 substituir…</option>
-                                {foods.map((f) => (
-                                  <option key={f.id} value={f.id}>
-                                    {f.name}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </td>
-                        );
-                      })}
+                      {DAYS.map((d) => (
+                        <MealCell
+                          key={d.key}
+                          day={d.key}
+                          meal={meal.key}
+                          slot={weeklyMenu[d.key]?.[meal.key]}
+                          foods={foods}
+                          onUpdate={updateSlot}
+                          onSubstitute={substituteFood}
+                        />
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -364,6 +340,55 @@ export function ProtocolEditorDialog({
     </>
   );
 }
+
+const MealCell = memo(function MealCell({
+  day,
+  meal,
+  slot,
+  foods,
+  onUpdate,
+  onSubstitute,
+}: {
+  day: keyof WeeklyMenu;
+  meal: keyof DayMenu;
+  slot: DayMenu[keyof DayMenu];
+  foods: FoodCatalogItem[];
+  onUpdate: (day: keyof WeeklyMenu, meal: keyof DayMenu, field: "descricao" | "kcal", value: string) => void;
+  onSubstitute: (day: keyof WeeklyMenu, meal: keyof DayMenu, foodId: string) => void;
+}) {
+  return (
+    <td className="border-t border-[var(--border-soft)] bg-[var(--surface)] px-2 py-2">
+      <textarea
+        value={slot?.descricao ?? ""}
+        onChange={(e) => onUpdate(day, meal, "descricao", e.target.value)}
+        rows={2}
+        className="mb-1 w-full resize-none rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
+        placeholder="Descrição"
+      />
+      <input
+        type="number"
+        value={slot?.kcal ?? ""}
+        onChange={(e) => onUpdate(day, meal, "kcal", e.target.value)}
+        className="mb-1 w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
+        placeholder="kcal"
+      />
+      {foods.length > 0 && (
+        <select
+          value=""
+          onChange={(e) => e.target.value && onSubstitute(day, meal, e.target.value)}
+          className="w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1 py-1 text-[10px] text-[var(--ink-soft)] outline-none focus:border-brand"
+        >
+          <option value="">🔄 substituir…</option>
+          {foods.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </td>
+  );
+});
 
 function yearsSince(dateStr: string) {
   const birth = new Date(dateStr);
