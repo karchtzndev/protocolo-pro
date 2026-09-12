@@ -43,7 +43,28 @@ export interface Nutritionist {
   stripe_subscription_id: string | null;
   subscription_status: "trialing" | "active" | "past_due" | "canceled";
   plan: "solo" | "clinica";
+  booking_slug: string | null;
   created_at: string;
+}
+
+export interface CrmStage {
+  id: string;
+  nutritionist_id: string;
+  key: string;
+  label: string;
+  position: number;
+  color: "neutral" | "success" | "warning" | "danger";
+  created_at: string;
+}
+
+export interface Broadcast {
+  id: string;
+  nutritionist_id: string;
+  title: string;
+  body: string;
+  filter_tags: string[];
+  recipient_count: number;
+  sent_at: string;
 }
 
 export type ClinicalFlag =
@@ -66,6 +87,8 @@ export interface Patient {
   clinical_history: string | null;
   clinical_flags: ClinicalFlag[];
   status: PatientStatus;
+  stage_id: string | null;
+  tags: string[];
   created_at: string;
 }
 

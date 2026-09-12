@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
+  { href: "/crm", label: "CRM", icon: "🗂" },
   { href: "/pacientes", label: "Pacientes", icon: "◔" },
   { href: "/agendamentos", label: "Agendamentos", icon: "📅" },
+  { href: "/broadcast", label: "Broadcast", icon: "📣" },
   { href: "/configuracoes", label: "Configurações", icon: "⚙" },
   { href: "/links", label: "Links de Pacientes", icon: "⛓" },
 ];
