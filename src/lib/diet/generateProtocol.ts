@@ -57,6 +57,8 @@ export interface GenerateProtocolInput {
   weightKg: number;
   objective: DietObjective;
   foods: FoodCatalogItem[];
+  /** IDs de alimentos que o paciente já consome (da anamnese) — priorizados na montagem do cardápio. */
+  preferredFoodIds?: Set<string>;
 }
 
 export interface GenerateProtocolResult {
@@ -84,7 +86,14 @@ const MAX_PORTION_G: Record<FoodCategory, number> = {
   bebidas_e_outros: 250,
 };
 
-export function generateWeeklyMenu({ sex, tdeeKcal, weightKg, objective, foods }: GenerateProtocolInput): GenerateProtocolResult {
+export function generateWeeklyMenu({
+  sex,
+  tdeeKcal,
+  weightKg,
+  objective,
+  foods,
+  preferredFoodIds,
+}: GenerateProtocolInput): GenerateProtocolResult {
   const targetKcal = tdeeKcal + OBJECTIVE_KCAL_ADJUSTMENT[objective];
   const floor = SAFE_CALORIE_FLOOR[sex];
 
@@ -105,7 +114,7 @@ export function generateWeeklyMenu({ sex, tdeeKcal, weightKg, objective, foods }
     const dayMenu: DayMenu = {};
     MEAL_SCHEDULE.forEach((meal, mealIndex) => {
       const mealTargetKcal = targetKcal * meal.pctOfDay;
-      dayMenu[meal.key] = buildMealSlot(MEAL_TEMPLATE[meal.key], mealTargetKcal, foods, dayIndex + mealIndex);
+      dayMenu[meal.key] = buildMealSlot(MEAL_TEMPLATE[meal.key], mealTargetKcal, foods, dayIndex + mealIndex, preferredFoodIds);
     });
     menu[day] = dayMenu;
   });
@@ -121,7 +130,8 @@ function buildMealSlot(
   template: { category: FoodCategory; share: number }[],
   mealTargetKcal: number,
   foods: FoodCatalogItem[],
-  rotationSeed: number
+  rotationSeed: number,
+  preferredFoodIds?: Set<string>
 ): MealSlot {
   let kcal = 0;
   let proteina_g = 0;
@@ -130,8 +140,14 @@ function buildMealSlot(
   const parts: string[] = [];
 
   template.forEach((slot, slotIndex) => {
-    const pool = foods.filter((f) => f.category === slot.category);
-    if (!pool.length) return;
+    const categoryPool = foods.filter((f) => f.category === slot.category);
+    if (!categoryPool.length) return;
+
+    // Prioriza alimentos que o paciente já consome (da anamnese) quando existem na categoria.
+    const preferredPool = preferredFoodIds
+      ? categoryPool.filter((f) => preferredFoodIds.has(f.id))
+      : [];
+    const pool = preferredPool.length ? preferredPool : categoryPool;
     const food = pool[(rotationSeed + slotIndex) % pool.length];
 
     const slotKcal = mealTargetKcal * slot.share;

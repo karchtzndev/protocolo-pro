@@ -8,7 +8,7 @@ import { MEAL_PRESET_LIST, type MealPresetKey } from "@/lib/mealPresets";
 import { calculateEnergyEquations } from "@/lib/health/energyEquations";
 import { generateWeeklyMenu, SafeCalorieFloorError, type DietObjective } from "@/lib/diet/generateProtocol";
 import { buildShoppingListFromMenu } from "@/lib/diet/shoppingList";
-import { screenPatient } from "@/lib/clinicalScreening";
+import { screenPatient, inferObjectiveFromText } from "@/lib/clinicalScreening";
 import { saveProtocol } from "./protocol-actions";
 
 const DAYS: { key: keyof WeeklyMenu; label: string }[] = [
@@ -28,18 +28,22 @@ export function ProtocolEditorDialog({
   protocol,
   foods,
   latestAnthropometry,
+  preferredFoodIds,
+  excludedFoodNames,
 }: {
   patient: Patient;
   protocol: Protocol | null;
   foods: FoodCatalogItem[];
   latestAnthropometry: AnthropometryRecord | null;
+  preferredFoodIds: string[];
+  excludedFoodNames: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu>(protocol?.weekly_menu ?? {});
   const [shoppingList, setShoppingList] = useState((protocol?.shopping_list ?? []).join("\n"));
   const [guidance, setGuidance] = useState((protocol?.guidance ?? []).join("\n"));
   const [activePreset, setActivePreset] = useState<MealPresetKey | null>(null);
-  const [objective, setObjective] = useState<DietObjective>("manutencao");
+  const [objective, setObjective] = useState<DietObjective>(() => inferObjectiveFromText(patient.objective));
   const [isDraft, setIsDraft] = useState(protocol?.is_draft ?? true);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSummary, setGenerationSummary] = useState<string | null>(null);
@@ -94,11 +98,13 @@ export function ProtocolEditorDialog({
         weightKg: latestAnthropometry.weight_kg,
         objective,
         foods,
+        preferredFoodIds: preferredFoodIds.length ? new Set(preferredFoodIds) : undefined,
       });
       setWeeklyMenu(result.weekly_menu);
       setActivePreset(null);
       setGenerationSummary(
-        `Gerado com base em ${mifflin.tdeeKcal} kcal de gasto (Mifflin-St Jeor) — meta de ${result.target_kcal_per_day} kcal/dia · ${result.macro_targets.protein_g}g proteína · ${result.macro_targets.carb_g}g carboidrato · ${result.macro_targets.fat_g}g gordura.`
+        `Gerado com base em ${mifflin.tdeeKcal} kcal de gasto (Mifflin-St Jeor) — meta de ${result.target_kcal_per_day} kcal/dia · ${result.macro_targets.protein_g}g proteína · ${result.macro_targets.carb_g}g carboidrato · ${result.macro_targets.fat_g}g gordura.` +
+          (preferredFoodIds.length ? " Priorizando alimentos que o paciente já consome (da anamnese)." : "")
       );
     } catch (err) {
       setGenerationError(err instanceof SafeCalorieFloorError ? err.message : "Não foi possível gerar o protocolo.");
@@ -174,21 +180,31 @@ export function ProtocolEditorDialog({
 
             <FieldLabel>Modelo predefinido</FieldLabel>
             <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {MEAL_PRESET_LIST.map((preset) => (
-                <button
-                  key={preset.key}
-                  type="button"
-                  onClick={() => applyPreset(preset.key)}
-                  className={`rounded-lg border px-3 py-2.5 text-left text-xs transition ${
-                    activePreset === preset.key
-                      ? "border-brand bg-accent-soft"
-                      : "border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--ink-faint)]"
-                  }`}
-                >
-                  <span className="block font-bold">{preset.label}</span>
-                  <span className="mt-0.5 block text-[10.5px] text-[var(--ink-soft)]">{preset.description}</span>
-                </button>
-              ))}
+              {MEAL_PRESET_LIST.map((preset) => {
+                const suggested =
+                  patient.clinical_flags.includes("gestante_lactante") &&
+                  (preset.key === "gravidez" || preset.key === "amamentacao");
+                return (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    onClick={() => applyPreset(preset.key)}
+                    className={`relative rounded-lg border px-3 py-2.5 text-left text-xs transition ${
+                      activePreset === preset.key
+                        ? "border-brand bg-accent-soft"
+                        : "border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--ink-faint)]"
+                    }`}
+                  >
+                    {suggested && (
+                      <span className="absolute -top-2 right-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        sugerido
+                      </span>
+                    )}
+                    <span className="block font-bold">{preset.label}</span>
+                    <span className="mt-0.5 block text-[10.5px] text-[var(--ink-soft)]">{preset.description}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="mb-5 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-2)] p-3.5">
@@ -209,6 +225,11 @@ export function ProtocolEditorDialog({
               </div>
               {generationSummary && <p className="mt-2 text-xs text-success">{generationSummary}</p>}
               {generationError && <p className="mt-2 text-xs text-danger">{generationError}</p>}
+              {excludedFoodNames.length > 0 && (
+                <p className="mt-2 text-xs text-danger">
+                  🚫 Nunca sugeridos (intolerância do paciente): {excludedFoodNames.join(", ")}
+                </p>
+              )}
             </div>
 
             <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">

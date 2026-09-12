@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { Patient, PatientLink, Protocol, PatientSupplement, Nutritionist, AnamnesisResponse } from "@/lib/types";
+import type { Patient, PatientLink, Protocol, PatientSupplement, Nutritionist, AnamnesisResponse, FoodCatalogItem } from "@/lib/types";
 import { PatientGate } from "./PatientGate";
 import { PatientOverview } from "./PatientOverview";
 
@@ -32,7 +32,7 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
     );
   }
 
-  const [{ data: protocol }, { data: supplements }, { data: pendingAnamnesis }] = await Promise.all([
+  const [{ data: protocol }, { data: supplements }, { data: pendingAnamnesis }, { data: foods }] = await Promise.all([
     supabase
       .from("protocols")
       .select("*")
@@ -52,6 +52,7 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<AnamnesisResponse>(),
+    supabase.from("foods_catalog").select("*").returns<FoodCatalogItem[]>(),
   ]);
 
   return (
@@ -62,6 +63,7 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
       supplements={supplements ?? []}
       slug={slug}
       pendingAnamnesis={pendingAnamnesis}
+      foods={foods ?? []}
     />
   );
 }

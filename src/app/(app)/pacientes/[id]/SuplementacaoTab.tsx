@@ -1,9 +1,11 @@
-import type { PatientSupplement, SupplementCatalogItem, SupplementPreset } from "@/lib/types";
+import type { Patient, PatientSupplement, SupplementCatalogItem, SupplementPreset } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { SupplementPrescribeDialog } from "./SupplementPrescribeDialog";
 import { SignPrescriptionButton } from "./SignPrescriptionButton";
 import { RemoveSupplementButton } from "./RemoveSupplementButton";
+import { ClinicalPresetSuggestions } from "./ClinicalPresetSuggestions";
+import { suggestedPresetsForFlags } from "@/lib/clinicalPresetBridge";
 
 const EVIDENCE_LABEL: Record<string, string> = {
   alta: "Evidência alta",
@@ -20,11 +22,13 @@ const EVIDENCE_TONE: Record<string, "success" | "warning" | "neutral"> = {
 };
 
 export function SuplementacaoTab({
+  patient,
   patientId,
   prescribed,
   catalog,
   presets,
 }: {
+  patient: Patient;
   patientId: string;
   prescribed: PatientSupplement[];
   catalog: SupplementCatalogItem[];
@@ -32,9 +36,15 @@ export function SuplementacaoTab({
 }) {
   const overdoseWarnings = checkOverdose(prescribed);
   const hasUnsigned = prescribed.some((p) => !p.signed_at);
+  const suggestedNames = suggestedPresetsForFlags(patient.clinical_flags);
 
   return (
     <div>
+      <ClinicalPresetSuggestions
+        patientId={patientId}
+        presets={presets.filter((p) => suggestedNames.includes(p.name))}
+      />
+
       {overdoseWarnings.map((w) => (
         <div key={w.supplementId} className="mb-4 flex items-start gap-2.5 rounded-lg bg-warning-soft p-3.5 text-sm font-medium text-warning">
           ⚠

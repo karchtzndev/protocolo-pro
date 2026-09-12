@@ -17,6 +17,14 @@ export function yearsSince(dateStr: string) {
   return age;
 }
 
+/** Preselecionar o objetivo da geração automática a partir do texto livre já cadastrado no paciente. */
+export function inferObjectiveFromText(objective: string | null): "emagrecimento" | "hipertrofia" | "manutencao" {
+  const text = (objective ?? "").toLowerCase();
+  if (/emagrec|perda de peso|d[ée]ficit/.test(text)) return "emagrecimento";
+  if (/hipertrofia|ganho de massa|massa muscular/.test(text)) return "hipertrofia";
+  return "manutencao";
+}
+
 export interface ScreeningResult {
   flagged: boolean;
   reasons: string[];

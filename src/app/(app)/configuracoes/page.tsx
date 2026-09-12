@@ -4,6 +4,7 @@ import type { Nutritionist, AccountDeletionRequest, AuditLogEntry } from "@/lib/
 import { updateProfile, updateBrand } from "./actions";
 import { BillingButtons } from "./BillingButtons";
 import { LgpdSection } from "./LgpdSection";
+import { LogoUpload } from "./LogoUpload";
 import { meetsWcagAA } from "@/lib/colorContrast";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -59,6 +60,12 @@ export default async function ConfiguracoesPage() {
       </Section>
 
       <Section title="Marca da clínica">
+        <div className="mb-4">
+          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">
+            Logo
+          </span>
+          <LogoUpload nutritionistId={n.id} currentLogoUrl={n.logo_url} />
+        </div>
         <form action={updateBrand} className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <Field label="Nome exibido ao paciente" name="clinic_name" defaultValue={n.clinic_name ?? ""} />
           <Field label="Contato exibido no PDF" name="clinic_phone" defaultValue={n.clinic_phone ?? ""} />

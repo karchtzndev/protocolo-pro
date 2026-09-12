@@ -40,3 +40,14 @@ export async function updateBrand(formData: FormData) {
 
   revalidatePath("/configuracoes");
 }
+
+export async function updateLogoUrl(logoUrl: string) {
+  const user = await requireActiveSubscription();
+  const supabase = await createClient();
+
+  await supabase.from("nutritionists").update({ logo_url: logoUrl }).eq("id", user.id);
+
+  await logAudit(user.id, "perfil.atualizar", { targetType: "nutritionist", targetId: user.id, metadata: { section: "logo" } });
+
+  revalidatePath("/configuracoes");
+}

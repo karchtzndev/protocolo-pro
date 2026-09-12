@@ -5,24 +5,33 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 
-export default function LoginPage() {
+export default function RedefinirSenhaPage() {
   const router = useRouter();
   const supabase = createClient();
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (password.length < 8) {
+      setError("A senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("As senhas não coincidem.");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
 
     if (error) {
-      setError("E-mail ou senha incorretos.");
-      setLoading(false);
+      setError("Não foi possível redefinir a senha. O link pode ter expirado — solicite um novo em /recuperar.");
       return;
     }
 
@@ -36,35 +45,12 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-8 shadow-[0_8px_30px_rgba(27,33,29,.14)]"
       >
-        <div className="mb-6 flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-sm font-bold text-brand-on font-display">
-            P
-          </span>
-          <span className="font-display text-base font-bold">Protocolo.Pro</span>
-        </div>
-
-        <h1 className="mb-1 text-xl font-bold">Entrar como nutricionista</h1>
-        <p className="mb-6 text-sm text-[var(--ink-soft)]">
-          Acesse o painel para gerenciar seus pacientes e protocolos.
-        </p>
+        <h1 className="mb-1 text-xl font-bold">Definir nova senha</h1>
+        <p className="mb-6 text-sm text-[var(--ink-soft)]">Escolha uma nova senha para sua conta.</p>
 
         <label className="mb-3 block">
           <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">
-            E-mail
-          </span>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand"
-            placeholder="voce@clinica.com"
-          />
-        </label>
-
-        <label className="mb-2 block">
-          <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">
-            Senha
+            Nova senha
           </span>
           <input
             type="password"
@@ -76,26 +62,25 @@ export default function LoginPage() {
           />
         </label>
 
-        <p className="mb-5 text-right text-xs">
-          <a href="/recuperar" className="font-semibold text-brand">
-            Esqueceu a senha?
-          </a>
-        </p>
+        <label className="mb-5 block">
+          <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">
+            Confirmar nova senha
+          </span>
+          <input
+            type="password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 text-sm outline-none focus:border-brand"
+            placeholder="••••••••"
+          />
+        </label>
 
-        {error && (
-          <p className="mb-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>
-        )}
+        {error && <p className="mb-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
 
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? "Entrando..." : "Entrar"}
+          {loading ? "Salvando..." : "Salvar nova senha"}
         </Button>
-
-        <p className="mt-4 text-center text-xs text-[var(--ink-soft)]">
-          Ainda não tem conta?{" "}
-          <a href="/signup" className="font-semibold text-brand">
-            Criar conta
-          </a>
-        </p>
       </form>
     </div>
   );

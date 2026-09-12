@@ -1,4 +1,4 @@
-import type { Patient, Nutritionist, Protocol, PatientSupplement, AnamnesisResponse } from "@/lib/types";
+import type { Patient, Nutritionist, Protocol, PatientSupplement, AnamnesisResponse, FoodCatalogItem } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
 import { ShareButtons } from "./ShareButtons";
 import { AnamnesisForm } from "./AnamnesisForm";
@@ -12,6 +12,7 @@ export function PatientOverview({
   supplements,
   slug,
   pendingAnamnesis,
+  foods,
 }: {
   patient: Patient;
   nutritionist: Nutritionist;
@@ -19,6 +20,7 @@ export function PatientOverview({
   supplements: PatientSupplement[];
   slug: string;
   pendingAnamnesis: AnamnesisResponse | null;
+  foods: FoodCatalogItem[];
 }) {
   const todayKey = DAY_KEYS[new Date().getDay()];
   const todayMenu = protocol?.weekly_menu[todayKey] ?? {};
@@ -34,9 +36,14 @@ export function PatientOverview({
         style={{ background: `linear-gradient(160deg, ${nutritionist.brand_primary_color}, #10231d)` }}
       >
         <div className="mb-5 flex items-center gap-2.5">
-          <div className="flex h-[38px] w-[38px] items-center justify-center rounded-lg bg-white/15 font-display text-sm font-bold">
-            {clinicName[0]}
-          </div>
+          {nutritionist.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={nutritionist.logo_url} alt={clinicName} className="h-[38px] w-[38px] rounded-lg object-cover" />
+          ) : (
+            <div className="flex h-[38px] w-[38px] items-center justify-center rounded-lg bg-white/15 font-display text-sm font-bold">
+              {clinicName[0]}
+            </div>
+          )}
           <div>
             <b className="block text-[13.5px]">{clinicName}</b>
             <span className="block text-[11px] opacity-70">{nutritionist.clinic_phone}</span>
@@ -47,7 +54,7 @@ export function PatientOverview({
       </div>
 
       <div className="-mt-9 space-y-3.5 px-4 pb-32">
-        {pendingAnamnesis && <AnamnesisForm anamnesisId={pendingAnamnesis.id} slug={slug} />}
+        {pendingAnamnesis && <AnamnesisForm anamnesisId={pendingAnamnesis.id} slug={slug} foods={foods} />}
 
         <Card title="🍽 Refeições de hoje">
           {MEAL_SCHEDULE.map(({ key: mealKey, label, time }) => {

@@ -226,6 +226,8 @@ export interface Appointment {
 }
 
 export interface AnamnesisResponses {
+  alimentos_habituais?: string[];
+  alimentos_intolerancia?: string[];
   habitos_alimentares?: string;
   historico_familiar?: string;
   atividade_fisica?: string;

@@ -46,7 +46,12 @@ export async function submitAnamnesis(slug: string, anamnesisId: string, formDat
   const hasAccess = cookieStore.get(`pl_${slug}`)?.value === "granted";
   if (!hasAccess) throw new Error("Sessão expirada — confirme o PIN novamente.");
 
+  const alimentosHabituais = formData.getAll("alimentos_habituais").map(String);
+  const alimentosIntolerancia = formData.getAll("alimentos_intolerancia").map(String);
+
   const responses: AnamnesisResponses = {
+    alimentos_habituais: alimentosHabituais.length ? alimentosHabituais : undefined,
+    alimentos_intolerancia: alimentosIntolerancia.length ? alimentosIntolerancia : undefined,
     habitos_alimentares: String(formData.get("habitos_alimentares") || "") || undefined,
     historico_familiar: String(formData.get("historico_familiar") || "") || undefined,
     atividade_fisica: String(formData.get("atividade_fisica") || "") || undefined,

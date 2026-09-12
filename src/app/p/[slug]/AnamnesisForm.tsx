@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { FoodCatalogItem, FoodCategory } from "@/lib/types";
 import { submitAnamnesis } from "./actions";
 
 const FIELDS: { name: string; label: string; placeholder?: string }[] = [
@@ -15,7 +16,19 @@ const FIELDS: { name: string; label: string; placeholder?: string }[] = [
   { name: "observacoes", label: "Alguma outra observação para seu nutricionista?" },
 ];
 
-export function AnamnesisForm({ anamnesisId, slug }: { anamnesisId: string; slug: string }) {
+const CATEGORY_LABELS: Record<FoodCategory, string> = {
+  cereais_e_paes: "Cereais e pães",
+  leguminosas: "Leguminosas (feijão, lentilha...)",
+  carnes_e_ovos: "Carnes e ovos",
+  laticinios: "Laticínios",
+  frutas: "Frutas",
+  vegetais: "Vegetais",
+  tuberculos: "Tubérculos (batata, mandioca...)",
+  gorduras_e_oleaginosas: "Gorduras e oleaginosas",
+  bebidas_e_outros: "Bebidas e outros",
+};
+
+export function AnamnesisForm({ anamnesisId, slug, foods }: { anamnesisId: string; slug: string; foods: FoodCatalogItem[] }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -27,6 +40,12 @@ export function AnamnesisForm({ anamnesisId, slug }: { anamnesisId: string; slug
         ✓ Anamnese enviada! Obrigado — seu nutricionista já pode ver suas respostas antes da consulta.
       </div>
     );
+  }
+
+  const byCategory = new Map<FoodCategory, FoodCatalogItem[]>();
+  for (const food of foods) {
+    if (!byCategory.has(food.category)) byCategory.set(food.category, []);
+    byCategory.get(food.category)!.push(food);
   }
 
   return (
@@ -63,6 +82,24 @@ export function AnamnesisForm({ anamnesisId, slug }: { anamnesisId: string; slug
         ))}
       </div>
 
+      {byCategory.size > 0 && (
+        <>
+          <FoodChecklist
+            byCategory={byCategory}
+            fieldName="alimentos_habituais"
+            title="Marque os alimentos que você já costuma comer"
+            description="Isso ajuda seu nutricionista a montar um plano com coisas que você já gosta e tem em casa."
+          />
+          <FoodChecklist
+            byCategory={byCategory}
+            fieldName="alimentos_intolerancia"
+            title="Marque alimentos que você NÃO pode comer (alergia ou intolerância)"
+            description="Esses alimentos ficam automaticamente de fora do seu protocolo."
+            highlight="danger"
+          />
+        </>
+      )}
+
       <button
         type="submit"
         disabled={saving}
@@ -71,5 +108,47 @@ export function AnamnesisForm({ anamnesisId, slug }: { anamnesisId: string; slug
         {saving ? "Enviando…" : "Enviar respostas"}
       </button>
     </form>
+  );
+}
+
+function FoodChecklist({
+  byCategory,
+  fieldName,
+  title,
+  description,
+  highlight,
+}: {
+  byCategory: Map<FoodCategory, FoodCatalogItem[]>;
+  fieldName: string;
+  title: string;
+  description: string;
+  highlight?: "danger";
+}) {
+  return (
+    <div className="mt-4">
+      <span className={`mb-1 block text-xs font-semibold ${highlight === "danger" ? "text-danger" : ""}`}>{title}</span>
+      <p className="mb-2 text-[11px] text-[var(--ink-soft)]">{description}</p>
+      <div
+        className={`max-h-64 space-y-3 overflow-y-auto rounded-lg border p-3 ${
+          highlight === "danger" ? "border-danger" : "border-[var(--border-soft)]"
+        }`}
+      >
+        {Array.from(byCategory.entries()).map(([category, items]) => (
+          <div key={category}>
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">
+              {CATEGORY_LABELS[category]}
+            </p>
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
+              {items.map((food) => (
+                <label key={food.id} className="flex items-center gap-1.5 text-xs">
+                  <input type="checkbox" name={fieldName} value={food.id} />
+                  {food.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

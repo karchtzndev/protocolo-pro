@@ -1,7 +1,14 @@
 import type { AnthropometryRecord, FoodCatalogItem, Patient, Protocol } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { ProtocolEditorDialog } from "./ProtocolEditorDialog";
+
+const STALE_AFTER_DAYS = 60;
+
+function daysSince(dateStr: string) {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+}
 
 const DAYS: { key: keyof NonNullable<Protocol["weekly_menu"]>; label: string }[] = [
   { key: "seg", label: "Seg" },
@@ -21,12 +28,16 @@ export function ProtocoloTab({
   foods,
   latestAnthropometry,
   history,
+  preferredFoodIds,
+  excludedFoodNames,
 }: {
   patient: Patient;
   protocol: Protocol | null;
   foods: FoodCatalogItem[];
   latestAnthropometry: AnthropometryRecord | null;
   history: Protocol[];
+  preferredFoodIds: string[];
+  excludedFoodNames: string[];
 }) {
   if (!protocol) {
     return (
@@ -35,7 +46,14 @@ export function ProtocoloTab({
           <p className="mb-4">
             Nenhum protocolo alimentar ativo. Crie o cardápio de 7 dias e a antropometria para este paciente.
           </p>
-          <ProtocolEditorDialog patient={patient} protocol={null} foods={foods} latestAnthropometry={latestAnthropometry} />
+          <ProtocolEditorDialog
+            patient={patient}
+            protocol={null}
+            foods={foods}
+            latestAnthropometry={latestAnthropometry}
+            preferredFoodIds={preferredFoodIds}
+            excludedFoodNames={excludedFoodNames}
+          />
         </div>
         <ProtocolHistory history={history} />
       </div>
@@ -44,8 +62,26 @@ export function ProtocoloTab({
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
-        <ProtocolEditorDialog patient={patient} protocol={protocol} foods={foods} latestAnthropometry={latestAnthropometry} />
+      {excludedFoodNames.length > 0 && (
+        <p className="mb-3 rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger">
+          🚫 Excluídos por intolerância (anamnese): {excludedFoodNames.join(", ")}
+        </p>
+      )}
+
+      <div className="mb-4 flex items-center justify-between">
+        {daysSince(protocol.created_at) > STALE_AFTER_DAYS ? (
+          <Badge tone="warning">⚠ protocolo com {daysSince(protocol.created_at)} dias — considere reavaliar</Badge>
+        ) : (
+          <span />
+        )}
+        <ProtocolEditorDialog
+          patient={patient}
+          protocol={protocol}
+          foods={foods}
+          latestAnthropometry={latestAnthropometry}
+          preferredFoodIds={preferredFoodIds}
+          excludedFoodNames={excludedFoodNames}
+        />
       </div>
 
       <div className="mb-6 grid grid-cols-3 gap-2.5 sm:grid-cols-5">

@@ -68,6 +68,16 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
 
   const age = yearsSince(patient.birth_date);
 
+  const latestFilledAnamnesis = (anamnesisResponses ?? [])
+    .filter((a) => a.status === "preenchido")
+    .sort((a, b) => new Date(b.submitted_at ?? b.created_at).getTime() - new Date(a.submitted_at ?? a.created_at).getTime())[0];
+  const excludedFoodIds = new Set(latestFilledAnamnesis?.responses.alimentos_intolerancia ?? []);
+  const safeFoods = (foods ?? []).filter((f) => !excludedFoodIds.has(f.id));
+  const excludedFoodNames = (foods ?? []).filter((f) => excludedFoodIds.has(f.id)).map((f) => f.name);
+  const preferredFoodIds = (latestFilledAnamnesis?.responses.alimentos_habituais ?? []).filter(
+    (id) => !excludedFoodIds.has(id)
+  );
+
   return (
     <div>
       <div className="mb-1 flex flex-wrap items-center gap-3.5">
@@ -96,9 +106,11 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
                 <ProtocoloTab
                   patient={patient}
                   protocol={protocol}
-                  foods={foods ?? []}
+                  foods={safeFoods}
                   latestAnthropometry={anthropometry?.[0] ?? null}
                   history={protocolHistory ?? []}
+                  preferredFoodIds={preferredFoodIds}
+                  excludedFoodNames={excludedFoodNames}
                 />
               ),
             },
@@ -107,6 +119,7 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
               label: "Suplementação",
               content: (
                 <SuplementacaoTab
+                  patient={patient}
                   patientId={patient.id}
                   prescribed={patientSupplements ?? []}
                   catalog={catalog ?? []}

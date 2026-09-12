@@ -74,8 +74,8 @@ export function AgendamentosTab({
       </form>
 
       <p className="mb-4 text-xs text-[var(--ink-soft)]">
-        Ao agendar, uma ficha de anamnese pendente é enviada automaticamente para o portal do paciente
-        (o mesmo link <code>/p/…</code> que ele já usa para ver o protocolo).
+        Na primeira consulta do paciente, uma ficha de anamnese pendente é enviada automaticamente para o portal dele
+        (o mesmo link <code>/p/…</code> que ele já usa para ver o protocolo). Nas consultas seguintes isso não se repete.
       </p>
 
       {!appointments.length ? (

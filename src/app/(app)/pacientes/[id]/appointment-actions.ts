@@ -18,6 +18,12 @@ export async function scheduleAppointment(patientId: string, formData: FormData)
   const notes = String(formData.get("notes") || "") || null;
   if (!scheduledAt) throw new Error("Escolha data e horário.");
 
+  const { count: priorAppointments } = await supabase
+    .from("appointments")
+    .select("*", { count: "exact", head: true })
+    .eq("patient_id", patientId);
+  const isFirstConsultation = (priorAppointments ?? 0) === 0;
+
   const { data: appointment, error } = await supabase
     .from("appointments")
     .insert({
@@ -30,15 +36,20 @@ export async function scheduleAppointment(patientId: string, formData: FormData)
     .single();
   if (error) throw new Error(error.message);
 
-  const { error: anamnesisError } = await supabase.from("anamnesis_responses").insert({
-    patient_id: patientId,
-    appointment_id: appointment.id,
-  });
-  if (anamnesisError) throw new Error(anamnesisError.message);
+  // A anamnese só é enviada automaticamente na primeira consulta — nas
+  // seguintes, o profissional já tem o histórico do paciente.
+  if (isFirstConsultation) {
+    const { error: anamnesisError } = await supabase.from("anamnesis_responses").insert({
+      patient_id: patientId,
+      appointment_id: appointment.id,
+    });
+    if (anamnesisError) throw new Error(anamnesisError.message);
+  }
 
   await logAudit(user.id, "consulta.agendar", { targetType: "patient", targetId: patientId });
 
   revalidatePath(`/pacientes/${patientId}`);
+  revalidatePath("/agendamentos");
 }
 
 export async function cancelAppointment(patientId: string, appointmentId: string) {
