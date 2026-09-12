@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
   // module .../pdfkit/js/standard-fonts/Helvetica.cjs". Declarar como pacote
   // externo faz a Vercel incluir o diretório inteiro em vez de rastrear.
   serverExternalPackages: ["pdf-parse", "@napi-rs/canvas", "pdfkit", "@react-pdf/renderer"],
+  // serverExternalPackages não é suficiente: o rastreamento de arquivos da
+  // Vercel (NFT) analisa estaticamente os requires e não enxerga o require
+  // com caminho calculado que o pdfkit usa para carregar as fontes padrão.
+  // Força a inclusão explícita desses arquivos nas rotas de PDF.
+  outputFileTracingIncludes: {
+    "/api/pdf/**/*": ["./node_modules/pdfkit/js/standard-fonts/**"],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
