@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { Patient, PatientLink, Protocol, PatientSupplement, Nutritionist } from "@/lib/types";
+import type { Patient, PatientLink, Protocol, PatientSupplement, Nutritionist, AnamnesisResponse } from "@/lib/types";
 import { PatientGate } from "./PatientGate";
 import { PatientOverview } from "./PatientOverview";
 
@@ -32,7 +32,7 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
     );
   }
 
-  const [{ data: protocol }, { data: supplements }] = await Promise.all([
+  const [{ data: protocol }, { data: supplements }, { data: pendingAnamnesis }] = await Promise.all([
     supabase
       .from("protocols")
       .select("*")
@@ -44,6 +44,14 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
       .select("*, supplement:supplements_catalog(*)")
       .eq("patient_id", link.patient.id)
       .returns<PatientSupplement[]>(),
+    supabase
+      .from("anamnesis_responses")
+      .select("*")
+      .eq("patient_id", link.patient.id)
+      .eq("status", "pendente")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<AnamnesisResponse>(),
   ]);
 
   return (
@@ -52,6 +60,8 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
       nutritionist={link.patient.nutritionist}
       protocol={protocol}
       supplements={supplements ?? []}
+      slug={slug}
+      pendingAnamnesis={pendingAnamnesis}
     />
   );
 }

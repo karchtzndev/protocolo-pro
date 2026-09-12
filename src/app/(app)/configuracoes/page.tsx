@@ -4,6 +4,7 @@ import type { Nutritionist, AccountDeletionRequest, AuditLogEntry } from "@/lib/
 import { updateProfile, updateBrand } from "./actions";
 import { BillingButtons } from "./BillingButtons";
 import { LgpdSection } from "./LgpdSection";
+import { meetsWcagAA } from "@/lib/colorContrast";
 
 const ACTION_LABELS: Record<string, string> = {
   "paciente.arquivar": "Paciente arquivado",
@@ -138,6 +139,7 @@ function Field({ label, name, defaultValue }: { label: string; name: string; def
 }
 
 function ColorField({ label, name, defaultValue }: { label: string; name: string; defaultValue: string }) {
+  const okContrast = meetsWcagAA(defaultValue);
   return (
     <label className="block">
       <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[var(--ink-soft)]">
@@ -146,6 +148,9 @@ function ColorField({ label, name, defaultValue }: { label: string; name: string
       <div className="flex items-center gap-2">
         <input type="color" name={name} defaultValue={defaultValue} className="h-9 w-12 rounded border border-[var(--border)]" />
         <span className="font-mono-data text-xs text-[var(--ink-soft)]">{defaultValue}</span>
+        {!okContrast && (
+          <span className="text-[11px] font-semibold text-warning">⚠ contraste baixo em fundo branco</span>
+        )}
       </div>
     </label>
   );

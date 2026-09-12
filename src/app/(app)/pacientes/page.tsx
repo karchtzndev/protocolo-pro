@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import type { Patient } from "@/lib/types";
+import { screenPatient } from "@/lib/clinicalScreening";
 import { NewPatientDialog } from "./NewPatientDialog";
 
 const statusTone = { ativo: "success", pendente: "warning", inativo: "neutral" } as const;
@@ -67,6 +68,7 @@ export default async function PacientesPage({
                 <b className="block truncate text-[13.5px]">{p.full_name}</b>
                 <span className="block truncate text-xs text-[var(--ink-soft)]">{p.objective ?? "—"}</span>
               </div>
+              {screenPatient(p).flagged && <Badge tone="warning">⚠ atenção</Badge>}
               <Badge tone={statusTone[p.status]}>{p.status}</Badge>
             </Link>
           ))

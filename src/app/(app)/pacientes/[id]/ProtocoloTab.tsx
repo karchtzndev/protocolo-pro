@@ -20,19 +20,24 @@ export function ProtocoloTab({
   protocol,
   foods,
   latestAnthropometry,
+  history,
 }: {
   patient: Patient;
   protocol: Protocol | null;
   foods: FoodCatalogItem[];
   latestAnthropometry: AnthropometryRecord | null;
+  history: Protocol[];
 }) {
   if (!protocol) {
     return (
-      <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--ink-soft)]">
-        <p className="mb-4">
-          Nenhum protocolo alimentar ativo. Crie o cardápio de 7 dias e a antropometria para este paciente.
-        </p>
-        <ProtocolEditorDialog patient={patient} protocol={null} foods={foods} latestAnthropometry={latestAnthropometry} />
+      <div>
+        <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--ink-soft)]">
+          <p className="mb-4">
+            Nenhum protocolo alimentar ativo. Crie o cardápio de 7 dias e a antropometria para este paciente.
+          </p>
+          <ProtocolEditorDialog patient={patient} protocol={null} foods={foods} latestAnthropometry={latestAnthropometry} />
+        </div>
+        <ProtocolHistory history={history} />
       </div>
     );
   }
@@ -112,7 +117,33 @@ export function ProtocoloTab({
       <a href={`/api/pdf/protocolo/${patient.id}`} target="_blank" rel="noreferrer">
         <Button variant="accent">⭳ Gerar PDF do protocolo</Button>
       </a>
+
+      <ProtocolHistory history={history} />
     </div>
+  );
+}
+
+function ProtocolHistory({ history }: { history: Protocol[] }) {
+  if (!history.length) return null;
+
+  return (
+    <details className="mt-8 rounded-lg border border-[var(--border-soft)] bg-[var(--surface)] p-4">
+      <summary className="cursor-pointer text-sm font-semibold">Histórico de versões ({history.length})</summary>
+      <div className="mt-3 space-y-2">
+        {history.map((p) => (
+          <div key={p.id} className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-2)] p-3 text-xs">
+            <div className="mb-1 flex items-center justify-between">
+              <b>{new Date(p.created_at).toLocaleDateString("pt-BR")}</b>
+              <span className="text-[var(--ink-faint)]">{p.is_draft ? "rascunho" : "publicado"}</span>
+            </div>
+            <span className="text-[var(--ink-soft)]">
+              {p.weight_kg ? `${p.weight_kg} kg` : "—"} · {p.height_m ? `${p.height_m} m` : "—"} ·{" "}
+              {p.shopping_list.length} itens na lista de compras
+            </span>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 

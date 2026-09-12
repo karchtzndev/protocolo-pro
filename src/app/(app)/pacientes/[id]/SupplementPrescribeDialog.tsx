@@ -17,11 +17,19 @@ export function SupplementPrescribeDialog({
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState("");
   const [dose, setDose] = useState("");
+  const [doseUnit, setDoseUnit] = useState("");
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   const selected = catalog.find((c) => c.id === selectedId);
   const overUl = !!(selected?.max_daily_dose && Number(dose) > selected.max_daily_dose);
+
+  function selectSupplement(id: string) {
+    setSelectedId(id);
+    const item = catalog.find((c) => c.id === id);
+    setDose(item?.default_dose != null ? String(item.default_dose) : "");
+    setDoseUnit(item?.dose_unit ?? "");
+  }
 
   return (
     <>
@@ -63,6 +71,7 @@ export function SupplementPrescribeDialog({
                   setOpen(false);
                   formRef.current?.reset();
                   setDose("");
+                  setDoseUnit("");
                   setSelectedId("");
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Erro ao prescrever.");
@@ -74,7 +83,7 @@ export function SupplementPrescribeDialog({
                 <select
                   name="supplement_id"
                   value={selectedId}
-                  onChange={(e) => setSelectedId(e.target.value)}
+                  onChange={(e) => selectSupplement(e.target.value)}
                   required
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm"
                 >
@@ -85,6 +94,11 @@ export function SupplementPrescribeDialog({
                     </option>
                   ))}
                 </select>
+                {selected?.default_dose != null && (
+                  <p className="mt-1 text-[11px] text-[var(--ink-soft)]">
+                    Dose e unidade pré-preenchidas com o padrão usual ({selected.default_dose} {selected.dose_unit}) — ajuste conforme o caso.
+                  </p>
+                )}
               </label>
 
               <div className="mb-3 grid grid-cols-2 gap-3">
@@ -104,7 +118,8 @@ export function SupplementPrescribeDialog({
                   <FieldLabel>Unidade</FieldLabel>
                   <input
                     name="dose_unit"
-                    defaultValue={selected?.dose_unit ?? ""}
+                    value={doseUnit}
+                    onChange={(e) => setDoseUnit(e.target.value)}
                     required
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm"
                   />

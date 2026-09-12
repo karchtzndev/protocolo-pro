@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import type { AnamnesisResponses } from "@/lib/types";
 
 const ACCESS_COOKIE_MAX_AGE = 60 * 60 * 4; // 4 horas
 
@@ -38,4 +39,28 @@ export async function verifyPin(slug: string, pin: string): Promise<{ ok: boolea
   });
 
   return { ok: true };
+}
+
+export async function submitAnamnesis(slug: string, anamnesisId: string, formData: FormData) {
+  const cookieStore = await cookies();
+  const hasAccess = cookieStore.get(`pl_${slug}`)?.value === "granted";
+  if (!hasAccess) throw new Error("Sessão expirada — confirme o PIN novamente.");
+
+  const responses: AnamnesisResponses = {
+    habitos_alimentares: String(formData.get("habitos_alimentares") || "") || undefined,
+    historico_familiar: String(formData.get("historico_familiar") || "") || undefined,
+    atividade_fisica: String(formData.get("atividade_fisica") || "") || undefined,
+    qualidade_sono: String(formData.get("qualidade_sono") || "") || undefined,
+    uso_medicamentos: String(formData.get("uso_medicamentos") || "") || undefined,
+    alergias_intolerancias: String(formData.get("alergias_intolerancias") || "") || undefined,
+    tabagismo_alcool: String(formData.get("tabagismo_alcool") || "") || undefined,
+    observacoes: String(formData.get("observacoes") || "") || undefined,
+  };
+
+  const supabase = createServiceRoleClient();
+  const { error } = await supabase
+    .from("anamnesis_responses")
+    .update({ responses, status: "preenchido", submitted_at: new Date().toISOString() })
+    .eq("id", anamnesisId);
+  if (error) throw new Error(error.message);
 }

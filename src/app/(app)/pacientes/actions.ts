@@ -37,3 +37,14 @@ export async function archivePatient(patientId: string) {
 
   revalidatePath("/pacientes");
 }
+
+export async function updateClinicalFlags(patientId: string, flags: string[]) {
+  await requireActiveSubscription();
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("patients").update({ clinical_flags: flags }).eq("id", patientId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/pacientes/${patientId}`);
+  revalidatePath("/pacientes");
+}

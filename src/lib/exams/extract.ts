@@ -33,8 +33,18 @@ const MARKERS: { name: string; patterns: RegExp[] }[] = [
 
 const VALUE_PATTERN = /([\d]+[.,]?\d*)\s*([a-zµμ%/²³.\w]*)/i;
 const RANGE_PATTERN = /(?:valor(?:es)?\s*de\s*referência|v\.?r\.?|referência)\s*[:\-]?\s*([\d.,]+\s*(?:a|até|-|–)\s*[\d.,]+\s*[a-zµμ%/²³.\w]*)/i;
+const DATE_PATTERN =
+  /(?:data\s*(?:da\s*)?(?:coleta|exame|emiss[ãa]o)|coletado\s*em|emitido\s*em)\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i;
 
 const MINIMUM_MARKERS_FOR_TEXT_PARSER = 5;
+
+/** Extrai a data do exame (formato dd/mm/aaaa) perto de rótulos comuns de laboratório. */
+export function parseExamDate(text: string): string | null {
+  const match = DATE_PATTERN.exec(text);
+  if (!match) return null;
+  const [day, month, year] = match[1].split("/");
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Etapa 1 do pipeline híbrido: lê a camada de texto embutida no PDF (sem
@@ -43,7 +53,12 @@ const MINIMUM_MARKERS_FOR_TEXT_PARSER = 5;
  * fazer (hoje: pedir digitação manual — a etapa 2, com o modelo de visão,
  * requer ANTHROPIC_API_KEY e ainda não está conectada neste projeto).
  */
-export async function extractFromPdfTextLayer(file: File): Promise<ExtractedExamResult[] | null> {
+export interface PdfExtractionResult {
+  results: ExtractedExamResult[];
+  examDate: string | null;
+}
+
+export async function extractFromPdfTextLayer(file: File): Promise<PdfExtractionResult | null> {
   if (file.type !== "application/pdf") return null;
 
   let text: string;
@@ -61,7 +76,7 @@ export async function extractFromPdfTextLayer(file: File): Promise<ExtractedExam
   const results = parseMarkersFromText(text);
   if (results.length < MINIMUM_MARKERS_FOR_TEXT_PARSER) return null;
 
-  return results;
+  return { results, examDate: parseExamDate(text) };
 }
 
 export function parseMarkersFromText(text: string): ExtractedExamResult[] {

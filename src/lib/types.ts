@@ -46,6 +46,13 @@ export interface Nutritionist {
   created_at: string;
 }
 
+export type ClinicalFlag =
+  | "gestante_lactante"
+  | "doenca_renal_hepatica_cardiaca"
+  | "diabetes_insulina"
+  | "cirurgia_bariatrica"
+  | "transtorno_alimentar";
+
 export interface Patient {
   id: string;
   nutritionist_id: string;
@@ -57,6 +64,7 @@ export interface Patient {
   objective: string | null;
   restrictions: string[];
   clinical_history: string | null;
+  clinical_flags: ClinicalFlag[];
   status: PatientStatus;
   created_at: string;
 }
@@ -140,6 +148,7 @@ export interface SupplementCatalogItem {
   description: string | null;
   max_daily_dose: number | null;
   dose_unit: string | null;
+  default_dose: number | null;
   cfn_category: CfnCategory | null;
   evidence_level: EvidenceLevel | null;
   requires_fitoterapia_license: boolean;
@@ -203,6 +212,37 @@ export interface PatientLink {
   expires_at: string | null;
   revoked_at: string | null;
   consent_accepted_at: string | null;
+  created_at: string;
+}
+
+export interface Appointment {
+  id: string;
+  patient_id: string;
+  nutritionist_id: string;
+  scheduled_at: string;
+  status: "agendado" | "concluido" | "cancelado";
+  notes: string | null;
+  created_at: string;
+}
+
+export interface AnamnesisResponses {
+  habitos_alimentares?: string;
+  historico_familiar?: string;
+  atividade_fisica?: string;
+  qualidade_sono?: string;
+  uso_medicamentos?: string;
+  alergias_intolerancias?: string;
+  tabagismo_alcool?: string;
+  observacoes?: string;
+}
+
+export interface AnamnesisResponse {
+  id: string;
+  patient_id: string;
+  appointment_id: string | null;
+  status: "pendente" | "preenchido";
+  responses: AnamnesisResponses;
+  submitted_at: string | null;
   created_at: string;
 }
 

@@ -1,6 +1,7 @@
-import type { Patient, Nutritionist, Protocol, PatientSupplement } from "@/lib/types";
+import type { Patient, Nutritionist, Protocol, PatientSupplement, AnamnesisResponse } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
 import { ShareButtons } from "./ShareButtons";
+import { AnamnesisForm } from "./AnamnesisForm";
 
 const DAY_KEYS: (keyof NonNullable<Protocol["weekly_menu"]>)[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 
@@ -9,11 +10,15 @@ export function PatientOverview({
   nutritionist,
   protocol,
   supplements,
+  slug,
+  pendingAnamnesis,
 }: {
   patient: Patient;
   nutritionist: Nutritionist;
   protocol: Protocol | null;
   supplements: PatientSupplement[];
+  slug: string;
+  pendingAnamnesis: AnamnesisResponse | null;
 }) {
   const todayKey = DAY_KEYS[new Date().getDay()];
   const todayMenu = protocol?.weekly_menu[todayKey] ?? {};
@@ -42,6 +47,8 @@ export function PatientOverview({
       </div>
 
       <div className="-mt-9 space-y-3.5 px-4 pb-32">
+        {pendingAnamnesis && <AnamnesisForm anamnesisId={pendingAnamnesis.id} slug={slug} />}
+
         <Card title="🍽 Refeições de hoje">
           {MEAL_SCHEDULE.map(({ key: mealKey, label, time }) => {
             const meal = todayMenu[mealKey];

@@ -2,12 +2,13 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
-import type { Patient, Protocol, PatientSupplement, Exam, ExamResult, AnthropometryRecord, FoodCatalogItem, SupplementCatalogItem, SupplementPreset } from "@/lib/types";
+import type { Patient, Protocol, PatientSupplement, Exam, ExamResult, AnthropometryRecord, FoodCatalogItem, SupplementCatalogItem, SupplementPreset, Appointment, AnamnesisResponse } from "@/lib/types";
 import { CadastroTab } from "./CadastroTab";
 import { ProtocoloTab } from "./ProtocoloTab";
 import { ComposicaoTab } from "./ComposicaoTab";
 import { SuplementacaoTab } from "./SuplementacaoTab";
 import { ExamesTab } from "./ExamesTab";
+import { AgendamentosTab } from "./AgendamentosTab";
 
 const statusTone = { ativo: "success", pendente: "warning", inativo: "neutral" } as const;
 
@@ -18,7 +19,7 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", id).single<Patient>();
   if (!patient) notFound();
 
-  const [{ data: protocol }, { data: patientSupplements }, { data: catalog }, { data: exams }, { data: anthropometry }, { data: foods }, { data: presets }] = await Promise.all([
+  const [{ data: protocol }, { data: patientSupplements }, { data: catalog }, { data: exams }, { data: anthropometry }, { data: foods }, { data: presets }, { data: protocolHistory }, { data: appointments }, { data: anamnesisResponses }] = await Promise.all([
     supabase
       .from("protocols")
       .select("*")
@@ -45,6 +46,24 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
       .returns<AnthropometryRecord[]>(),
     supabase.from("foods_catalog").select("*").returns<FoodCatalogItem[]>(),
     supabase.from("supplement_presets").select("*").order("name").returns<SupplementPreset[]>(),
+    supabase
+      .from("protocols")
+      .select("*")
+      .eq("patient_id", id)
+      .eq("active", false)
+      .order("created_at", { ascending: false })
+      .returns<Protocol[]>(),
+    supabase
+      .from("appointments")
+      .select("*")
+      .eq("patient_id", id)
+      .order("scheduled_at", { ascending: false })
+      .returns<Appointment[]>(),
+    supabase
+      .from("anamnesis_responses")
+      .select("*")
+      .eq("patient_id", id)
+      .returns<AnamnesisResponse[]>(),
   ]);
 
   const age = yearsSince(patient.birth_date);
@@ -79,6 +98,7 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
                   protocol={protocol}
                   foods={foods ?? []}
                   latestAnthropometry={anthropometry?.[0] ?? null}
+                  history={protocolHistory ?? []}
                 />
               ),
             },
@@ -94,7 +114,22 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
                 />
               ),
             },
-            { id: "exames", label: "Exames", content: <ExamesTab patientId={patient.id} exams={exams ?? []} /> },
+            { id: "exames", label: "Exames", content: <ExamesTab patientId={patient.id} exams={exams ?? []} presets={presets ?? []} /> },
+            {
+              id: "agendamentos",
+              label: "Agendamentos",
+              content: (
+                <AgendamentosTab
+                  patientId={patient.id}
+                  appointments={appointments ?? []}
+                  anamnesisByAppointment={Object.fromEntries(
+                    (anamnesisResponses ?? [])
+                      .filter((a) => a.appointment_id)
+                      .map((a) => [a.appointment_id as string, a])
+                  )}
+                />
+              ),
+            },
           ]}
         />
       </div>

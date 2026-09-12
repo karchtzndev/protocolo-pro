@@ -34,9 +34,9 @@ export async function POST(request: Request) {
 
   await logAudit(user.id, "exame.enviar", { targetType: "exam", targetId: exam.id, metadata: { fileName: file.name } });
 
-  const results = await extractFromPdfTextLayer(file);
+  const extraction = await extractFromPdfTextLayer(file);
 
-  if (!results) {
+  if (!extraction) {
     // A imagem/PDF escaneado exigiria a etapa 2 (modelo de visão), ainda não
     // conectada neste projeto — fica pendente de digitação manual.
     await supabase.from("exams").update({ status: "erro" }).eq("id", exam.id);
@@ -48,12 +48,17 @@ export async function POST(request: Request) {
     });
   }
 
+  const { results, examDate } = extraction;
+
   const { error: resultsError } = await supabase.from("exam_results").insert(
     results.map((r) => ({ ...r, exam_id: exam.id, confirmed: false }))
   );
   if (resultsError) return NextResponse.json({ error: resultsError.message }, { status: 500 });
 
-  await supabase.from("exams").update({ status: "concluido" }).eq("id", exam.id);
+  await supabase
+    .from("exams")
+    .update({ status: "concluido", ...(examDate ? { exam_date: examDate } : {}) })
+    .eq("id", exam.id);
 
-  return NextResponse.json({ examId: exam.id, results });
+  return NextResponse.json({ examId: exam.id, results, examDate });
 }

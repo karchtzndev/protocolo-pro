@@ -15,7 +15,9 @@ export type AuditActionType =
   | "suplementacao.assinar"
   | "perfil.atualizar"
   | "dados.exportar"
-  | "conta.solicitar_exclusao";
+  | "conta.solicitar_exclusao"
+  | "consulta.agendar"
+  | "consulta.cancelar";
 
 /** Trunca o IP para preservar privacidade — último octeto (IPv4) ou último grupo (IPv6). */
 async function getTruncatedIp(): Promise<string | null> {

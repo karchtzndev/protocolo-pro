@@ -8,6 +8,7 @@ import { MEAL_PRESET_LIST, type MealPresetKey } from "@/lib/mealPresets";
 import { calculateEnergyEquations } from "@/lib/health/energyEquations";
 import { generateWeeklyMenu, SafeCalorieFloorError, type DietObjective } from "@/lib/diet/generateProtocol";
 import { buildShoppingListFromMenu } from "@/lib/diet/shoppingList";
+import { screenPatient } from "@/lib/clinicalScreening";
 import { saveProtocol } from "./protocol-actions";
 
 const DAYS: { key: keyof WeeklyMenu; label: string }[] = [
@@ -59,6 +60,13 @@ export function ProtocolEditorDialog({
     setGenerationError(null);
     setGenerationSummary(null);
 
+    const screening = screenPatient(patient);
+    if (screening.flagged) {
+      setGenerationError(
+        `Paciente sinalizado para avaliação individual (${screening.reasons.join(", ")}) — monte o protocolo manualmente em vez de usar a geração automática.`
+      );
+      return;
+    }
     if (!latestAnthropometry) {
       setGenerationError("Registre uma aferição na aba Composição Corporal antes de gerar automaticamente.");
       return;

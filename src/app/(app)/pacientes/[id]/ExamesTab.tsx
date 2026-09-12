@@ -3,15 +3,25 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
-import type { Exam, ExamResult } from "@/lib/types";
+import type { Exam, ExamResult, SupplementPreset } from "@/lib/types";
 import { confirmExamResult, addManualExamResult } from "./exam-actions";
+import { applySupplementPreset } from "./supplement-actions";
+import { suggestedPresetForMarker } from "@/lib/examSupplementBridge";
 
 const EXTRACTION_LABEL: Record<string, string> = {
   texto_pdf: "texto do PDF",
   ia_visao: "IA (visão)",
 };
 
-export function ExamesTab({ patientId, exams }: { patientId: string; exams: (Exam & { results: ExamResult[] })[] }) {
+export function ExamesTab({
+  patientId,
+  exams,
+  presets,
+}: {
+  patientId: string;
+  exams: (Exam & { results: ExamResult[] })[];
+  presets: SupplementPreset[];
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -78,6 +88,8 @@ export function ExamesTab({ patientId, exams }: { patientId: string; exams: (Exa
         <p className="text-center text-sm text-[var(--ink-soft)]">Nenhum exame enviado ainda.</p>
       )}
 
+      <PresetSuggestions patientId={patientId} exams={exams} presets={presets} />
+
       {exams.map((exam) => {
         const outCount = exam.results.filter((r) => r.out_of_range).length;
         return (
@@ -121,6 +133,59 @@ export function ExamesTab({ patientId, exams }: { patientId: string; exams: (Exa
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function PresetSuggestions({
+  patientId,
+  exams,
+  presets,
+}: {
+  patientId: string;
+  exams: (Exam & { results: ExamResult[] })[];
+  presets: SupplementPreset[];
+}) {
+  const router = useRouter();
+  const [applying, setApplying] = useState<string | null>(null);
+
+  const suggestedNames = new Set<string>();
+  for (const exam of exams) {
+    for (const r of exam.results) {
+      if (r.confirmed && r.out_of_range) {
+        const name = suggestedPresetForMarker(r.test_name);
+        if (name) suggestedNames.add(name);
+      }
+    }
+  }
+
+  const suggestions = presets.filter((p) => suggestedNames.has(p.name));
+  if (!suggestions.length) return null;
+
+  return (
+    <div className="mb-6 rounded-lg bg-accent-soft p-3.5">
+      <p className="mb-2 text-sm font-semibold text-accent-strong">💡 Sugestão a partir dos exames confirmados</p>
+      <div className="flex flex-wrap gap-2">
+        {suggestions.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            disabled={applying === preset.id}
+            onClick={async () => {
+              setApplying(preset.id);
+              try {
+                await applySupplementPreset(patientId, preset.id);
+                router.refresh();
+              } finally {
+                setApplying(null);
+              }
+            }}
+            className="rounded-full border border-accent bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-accent-strong hover:brightness-95"
+          >
+            {applying === preset.id ? "Aplicando…" : `Aplicar protocolo: ${preset.name}`}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
