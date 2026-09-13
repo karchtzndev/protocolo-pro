@@ -242,17 +242,37 @@ export function ProtocolEditorDialog({
               )}
             </div>
 
+            <div className="mb-1.5 flex items-center justify-between">
+              <FieldLabel>Antropometria</FieldLabel>
+              {!protocol?.weight_kg && latestAnthropometry && (
+                <span className="text-[10.5px] text-[var(--ink-faint)]">
+                  preenchido automaticamente com a última aferição ({new Date(latestAnthropometry.recorded_at).toLocaleDateString("pt-BR")})
+                </span>
+              )}
+            </div>
             <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <NumField label="Peso (kg)" name="weight_kg" defaultValue={protocol?.weight_kg ?? undefined} />
+              <NumField
+                label="Peso (kg)"
+                name="weight_kg"
+                defaultValue={protocol?.weight_kg ?? latestAnthropometry?.weight_kg ?? undefined}
+              />
               <NumField
                 label="Altura (m)"
                 name="height_m"
                 step="0.01"
                 placeholder="ex: 1,75"
-                defaultValue={protocol?.height_m ?? undefined}
+                defaultValue={protocol?.height_m ?? latestAnthropometry?.height_m ?? undefined}
               />
-              <NumField label="Gordura (%)" name="body_fat_pct" defaultValue={protocol?.body_fat_pct ?? undefined} />
-              <NumField label="Cintura (cm)" name="waist_cm" defaultValue={protocol?.waist_cm ?? undefined} />
+              <NumField
+                label="Gordura (%)"
+                name="body_fat_pct"
+                defaultValue={protocol?.body_fat_pct ?? undefined}
+              />
+              <NumField
+                label="Cintura (cm)"
+                name="waist_cm"
+                defaultValue={protocol?.waist_cm ?? latestAnthropometry?.waist_cm ?? undefined}
+              />
             </div>
 
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
