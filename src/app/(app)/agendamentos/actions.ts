@@ -4,24 +4,29 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveSubscription } from "@/lib/auth/requireActiveSubscription";
 import { logAudit } from "@/lib/audit";
+import { createPatientLink } from "@/lib/patientLinks";
 
 /**
  * Agenda a primeira consulta de um paciente novo — cadastra o paciente,
- * cria o agendamento e a anamnese pendente em um único passo.
+ * cria o agendamento, o link de acesso ao portal e a anamnese pendente em
+ * um único passo.
  */
-export async function createPatientAndSchedule(formData: FormData) {
+export async function createPatientAndSchedule(formData: FormData): Promise<{ slug: string }> {
   const user = await requireActiveSubscription();
   const supabase = await createClient();
 
   const scheduledAt = String(formData.get("scheduled_at") || "");
   if (!scheduledAt) throw new Error("Escolha data e horário.");
 
+  const fullName = String(formData.get("full_name"));
+  const birthDate = String(formData.get("birth_date"));
+
   const { data: patient, error: patientError } = await supabase
     .from("patients")
     .insert({
       nutritionist_id: user.id,
-      full_name: String(formData.get("full_name")),
-      birth_date: String(formData.get("birth_date")),
+      full_name: fullName,
+      birth_date: birthDate,
       sex: String(formData.get("sex") || "") || null,
       phone: String(formData.get("phone") || "") || null,
       email: String(formData.get("email") || "") || null,
@@ -49,8 +54,11 @@ export async function createPatientAndSchedule(formData: FormData) {
   });
   if (anamnesisError) throw new Error(anamnesisError.message);
 
+  const slug = await createPatientLink(supabase, { patientId: patient.id, fullName, birthDate });
+
   await logAudit(user.id, "consulta.agendar", { targetType: "patient", targetId: patient.id, metadata: { newPatient: true } });
 
   revalidatePath("/agendamentos");
   revalidatePath("/pacientes");
+  return { slug };
 }

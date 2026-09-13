@@ -4,25 +4,38 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveSubscription } from "@/lib/auth/requireActiveSubscription";
 import { logAudit } from "@/lib/audit";
+import { createPatientAccess } from "@/lib/patientLinks";
 
-export async function createPatient(formData: FormData) {
+export async function createPatient(formData: FormData): Promise<{ patientId: string; slug: string }> {
   const user = await requireActiveSubscription();
   const supabase = await createClient();
 
-  const { error } = await supabase.from("patients").insert({
-    nutritionist_id: user.id,
-    full_name: String(formData.get("full_name")),
-    birth_date: String(formData.get("birth_date")),
-    sex: String(formData.get("sex") || "") || null,
-    phone: String(formData.get("phone") || "") || null,
-    email: String(formData.get("email") || "") || null,
-    objective: String(formData.get("objective") || "") || null,
-    status: "pendente",
-  });
+  const fullName = String(formData.get("full_name"));
+  const birthDate = String(formData.get("birth_date"));
+
+  const { data: patient, error } = await supabase
+    .from("patients")
+    .insert({
+      nutritionist_id: user.id,
+      full_name: fullName,
+      birth_date: birthDate,
+      sex: String(formData.get("sex") || "") || null,
+      phone: String(formData.get("phone") || "") || null,
+      email: String(formData.get("email") || "") || null,
+      objective: String(formData.get("objective") || "") || null,
+      status: "pendente",
+    })
+    .select("id")
+    .single();
 
   if (error) throw new Error(error.message);
 
+  // Já deixa o acesso do portal pronto — a anamnese completa fica pendente
+  // esperando o paciente preencher, sem o profissional precisar de um passo extra.
+  const slug = await createPatientAccess(supabase, { patientId: patient.id, fullName, birthDate });
+
   revalidatePath("/pacientes");
+  return { patientId: patient.id, slug };
 }
 
 /** Arquivamento é exclusão lógica — preserva histórico do paciente. */

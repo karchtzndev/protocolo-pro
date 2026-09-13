@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { LinkSharePanel } from "@/components/patients/LinkSharePanel";
 import type { Patient } from "@/lib/types";
 import { createPatientAndSchedule } from "./actions";
 import { scheduleAppointment } from "../pacientes/[id]/appointment-actions";
@@ -11,14 +12,33 @@ export function ScheduleDialog({ patients }: { patients: Patient[] }) {
   const [mode, setMode] = useState<"existente" | "novo">("existente");
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [createdSlug, setCreatedSlug] = useState<{ slug: string; phone: string; email: string } | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  function close() {
+    setOpen(false);
+    setCreatedSlug(null);
+    setSelectedPatientId("");
+  }
 
   return (
     <>
       <Button onClick={() => setOpen(true)}>+ Novo agendamento</Button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={close}>
+          {createdSlug ? (
+            <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-[var(--surface)] p-6 shadow-2xl">
+              <h2 className="mb-1 text-lg font-bold">Agendado 🎉</h2>
+              <p className="mb-4 text-sm text-[var(--ink-soft)]">
+                Envie este link para o paciente preencher a anamnese completa antes da consulta.
+              </p>
+              <LinkSharePanel slug={createdSlug.slug} phone={createdSlug.phone} email={createdSlug.email} />
+              <div className="mt-5 flex justify-end">
+                <Button onClick={close}>Concluir</Button>
+              </div>
+            </div>
+          ) : (
           <div onClick={(e) => e.stopPropagation()} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-[var(--surface)] p-6 shadow-2xl">
             <h2 className="mb-4 text-lg font-bold">Novo agendamento</h2>
 
@@ -51,12 +71,18 @@ export function ScheduleDialog({ patients }: { patients: Patient[] }) {
                   if (mode === "existente") {
                     if (!selectedPatientId) throw new Error("Selecione um paciente.");
                     await scheduleAppointment(selectedPatientId, formData);
+                    setOpen(false);
+                    formRef.current?.reset();
+                    setSelectedPatientId("");
                   } else {
-                    await createPatientAndSchedule(formData);
+                    const { slug } = await createPatientAndSchedule(formData);
+                    setCreatedSlug({
+                      slug,
+                      phone: String(formData.get("phone") || ""),
+                      email: String(formData.get("email") || ""),
+                    });
+                    formRef.current?.reset();
                   }
-                  setOpen(false);
-                  formRef.current?.reset();
-                  setSelectedPatientId("");
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Erro ao agendar.");
                 }
@@ -118,13 +144,14 @@ export function ScheduleDialog({ patients }: { patients: Patient[] }) {
               {error && <p className="mb-3 text-xs text-danger">{error}</p>}
 
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                <Button type="button" variant="ghost" onClick={close}>
                   Cancelar
                 </Button>
                 <Button type="submit">Agendar</Button>
               </div>
             </form>
           </div>
+          )}
         </div>
       )}
     </>

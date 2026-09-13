@@ -2,20 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-
-function slugify(name: string) {
-  return name
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .split(" ")[0]
-    .replace(/[^a-z0-9]/g, "") || "paciente";
-}
-
-function randomToken(length: number) {
-  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-}
+import { createPatientAccess } from "@/lib/patientLinks";
 
 /** Captura pública de lead — cria o paciente, seu estágio "lead" e um link de acesso, sem exigir login. */
 export async function captureLead(bookingSlug: string, formData: FormData) {
@@ -56,16 +43,7 @@ export async function captureLead(bookingSlug: string, formData: FormData) {
     .single();
   if (patientError) throw new Error(patientError.message);
 
-  const slug = `${slugify(fullName)}-${randomToken(4)}`;
-  const pin = birthDate.replace(/-/g, "").slice(4);
-
-  const { error: linkError } = await supabase.from("patient_links").insert({
-    patient_id: patient.id,
-    slug,
-    pin_last4_birthdate: pin,
-    expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-  });
-  if (linkError) throw new Error(linkError.message);
+  const slug = await createPatientAccess(supabase, { patientId: patient.id, fullName, birthDate });
 
   redirect(`/p/${slug}`);
 }
