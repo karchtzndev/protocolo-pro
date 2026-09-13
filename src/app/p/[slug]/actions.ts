@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { db, recordMealCheckinOffline } from "@/lib/db";
 import type { AnamnesisResponses, DayMenu, MealCheckinStatus } from "@/lib/types";
 
 const ACCESS_COOKIE_MAX_AGE = 60 * 60 * 4; // 4 horas
