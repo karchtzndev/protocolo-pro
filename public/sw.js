@@ -3,8 +3,10 @@
 // Regra de ouro: o nome do cache é versionado e todo cache que não seja o da
 // versão atual é apagado no `activate`. Cache órfão é a causa nº1 de "o app
 // não atualiza sozinho".
-const CACHE_VERSION = "protocolopro-v1";
+const CACHE_VERSION = "protocolopro-v3";
 const OFFLINE_URL = "/offline.html";
+const DIET_CACHE = "diet-cache-v1";
+const IMAGE_CACHE = "image-cache-v1";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -14,11 +16,67 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
+// Sincronização em segundo plano
+self.addEventListener("message", (event) => {
+  if (event.data.type === "SYNC_QUEUE") {
+    event.waitUntil(syncQueue());
+  }
+});
+
+async function syncQueue() {
+  const db = await openDB();
+  const tx = db.transaction(["syncQueue"], "readwrite");
+  const queueStore = tx.objectStore("syncQueue");
+
+  const items = await queueStore.getAll();
+
+  for (const item of items) {
+    try {
+      const response = await fetch(`/api/${item.endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(item.payload),
+      });
+
+      if (response.ok) {
+        await queueStore.delete(item.id);
+      } else {
+        // Incrementa tentativas se falhar
+        await queueStore.put({
+          ...item,
+          retries: item.retries + 1,
+        });
+      }
+    } catch (error) {
+      // Mantém na fila para tentar novamente
+      await queueStore.put({
+        ...item,
+        retries: item.retries + 1,
+      });
+    }
+  }
+}
+
+async function openDB() {
+  return new Promise((resolve) => {
+    const request = indexedDB.open("ProtocoloProDatabase", 1);
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((k) => k !== CACHE_VERSION && k !== DIET_CACHE && k !== IMAGE_CACHE)
+            .map((k) => caches.delete(k))
+        )
+      )
       .then(() => self.clients.claim())
   );
 });
@@ -75,6 +133,49 @@ self.addEventListener("fetch", (event) => {
         })
     );
   }
+
+  // Estratégia de cache para dietas
+  if (url.pathname.startsWith("/api/diets/") && request.method === "GET") {
+    event.respondWith(
+      caches.open(DIET_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        const network = fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              cache.put(request, response.clone());
+              // Notificar clientes sobre atualização
+              self.clients.matchAll().then((clients) => {
+                clients.forEach((client) => {
+                  client.postMessage({
+                    type: "DIET_UPDATED",
+                    url: request.url
+                  });
+                });
+              });
+            }
+            return response;
+          })
+          .catch(() => cached);
+        return cached ?? network;
+      })
+    );
+  }
+
+  // Estratégia de cache para imagens
+  if (/\(jpg|jpeg|png|gif|webp)$/i.test(url.pathname)) {
+    event.respondWith(
+      caches.open(IMAGE_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        const network = fetch(request)
+          .then((response) => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          })
+          .catch(() => cached);
+        return cached ?? network;
+      })
+    );
+  }
 });
 
 self.addEventListener("push", (event) => {
@@ -87,6 +188,11 @@ self.addEventListener("push", (event) => {
       icon: "/pwa-icon/192",
       badge: "/pwa-icon/192",
       data: { url: payload.url ?? "/" },
+      vibrate: [200, 100, 200],
+      actions: [
+        { action: "open", title: "Abrir" },
+        { action: "close", title: "Fechar" }
+      ]
     })
   );
 });
@@ -94,6 +200,8 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url ?? "/";
+
+  if (event.action === "close") return;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window" }).then((clients) => {

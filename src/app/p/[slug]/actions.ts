@@ -69,13 +69,24 @@ export async function recordMealCheckin(
   const supabase = createServiceRoleClient();
   const today = new Date().toISOString().slice(0, 10);
 
+  // Salva localmente primeiro
+  await recordMealCheckinOffline(patientId, today, mealKey, status);
+
+  // Tenta sincronizar com o servidor
   const { error } = await supabase
     .from("meal_checkins")
     .upsert(
       { patient_id: patientId, checkin_date: today, meal_key: mealKey, status },
       { onConflict: "patient_id,checkin_date,meal_key" }
     );
-  if (error) throw new Error(error.message);
+
+  if (error) {
+    // Se falhar, mantém na fila de sincronização
+    console.error("Falha ao sincronizar checkin com o servidor:", error.message);
+  } else {
+    // Se sucesso, marca como sincronizado
+    await db.checkins.where("[patientId+checkinDate+mealKey]").equals([patientId, today, mealKey]).modify({ syncStatus: "synced" });
+  }
 
   await supabase
     .from("patients")
@@ -95,6 +106,17 @@ export async function subscribeToPush(
     throw new Error("Sessão expirada — confirme o PIN novamente.");
   }
 
+  // Salva localmente primeiro
+  await db.syncQueue.add({
+    type: "push_subscription",
+    action: "upsert",
+    endpoint: "subscribeToPush",
+    payload: { patientId, subscription },
+    timestamp: Date.now(),
+    retries: 0,
+  });
+
+  // Tenta sincronizar com o servidor
   const supabase = createServiceRoleClient();
   const { error } = await supabase
     .from("push_subscriptions")
@@ -102,7 +124,13 @@ export async function subscribeToPush(
       { patient_id: patientId, endpoint: subscription.endpoint, keys: subscription.keys },
       { onConflict: "endpoint" }
     );
-  if (error) throw new Error(error.message);
+
+  if (error) {
+    console.error("Falha ao sincronizar inscrição push com o servidor:", error.message);
+  } else {
+    // Se sucesso, remove da fila
+    await db.syncQueue.where("endpoint").equals("subscribeToPush").delete();
+  }
 }
 
 export async function unsubscribeFromPush(endpoint: string) {
@@ -131,10 +159,27 @@ export async function submitAnamnesis(slug: string, anamnesisId: string, formDat
     observacoes: String(formData.get("observacoes") || "") || undefined,
   };
 
+  // Salva localmente primeiro
+  await db.syncQueue.add({
+    type: "anamnesis",
+    action: "upsert",
+    endpoint: "submitAnamnesis",
+    payload: { anamnesisId, responses },
+    timestamp: Date.now(),
+    retries: 0,
+  });
+
+  // Tenta sincronizar com o servidor
   const supabase = createServiceRoleClient();
   const { error } = await supabase
     .from("anamnesis_responses")
     .update({ responses, status: "preenchido", submitted_at: new Date().toISOString() })
     .eq("id", anamnesisId);
-  if (error) throw new Error(error.message);
+
+  if (error) {
+    console.error("Falha ao sincronizar anamnese com o servidor:", error.message);
+  } else {
+    // Se sucesso, remove da fila
+    await db.syncQueue.where("endpoint").equals("submitAnamnesis").delete();
+  }
 }
