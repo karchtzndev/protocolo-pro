@@ -22,7 +22,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   return Response.json(
     {
       name: `${name} — Meu protocolo`,
-      short_name: name.slice(0, 12),
+      // Nome curto é o que cabe embaixo do ícone na tela inicial — corta por
+      // palavra, nunca no meio dela.
+      short_name: name.split(" ")[0].slice(0, 12),
       description: "Seu protocolo alimentar, suplementação e diário de refeições.",
       start_url: `/p/${slug}`,
       scope: `/p/${slug}`,
