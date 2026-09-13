@@ -56,6 +56,15 @@ export function ProtocolEditorDialog({
   const [generationSummary, setGenerationSummary] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  function clearWeeklyMenu() {
+    if (!confirm("Limpar todos os alimentos do cardápio da semana? Essa ação não pode ser desfeita.")) return;
+    setWeeklyMenu({});
+    setShoppingList("");
+    setActivePreset(null);
+    setGenerationError(null);
+    setGenerationSummary(null);
+  }
+
   function applyPreset(key: MealPresetKey) {
     const preset = MEAL_PRESET_LIST.find((p) => p.key === key);
     if (!preset) return;
@@ -246,11 +255,20 @@ export function ProtocolEditorDialog({
               <NumField label="Cintura (cm)" name="waist_cm" defaultValue={protocol?.waist_cm ?? undefined} />
             </div>
 
-            <div className="mb-1.5 flex items-center justify-between">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
               <FieldLabel>Cardápio — 7 dias</FieldLabel>
-              <span className="text-[10.5px] text-[var(--ink-faint)]">
-                Sempre informe a quantidade em gramas de cada alimento — evita o paciente ficar perdido.
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[10.5px] text-[var(--ink-faint)]">
+                  Sempre informe a quantidade em gramas de cada alimento — evita o paciente ficar perdido.
+                </span>
+                <button
+                  type="button"
+                  onClick={clearWeeklyMenu}
+                  className="shrink-0 rounded-md px-2 py-1 text-[10.5px] font-bold text-danger hover:bg-danger-soft"
+                >
+                  🗑 Limpar cardápio inteiro
+                </button>
+              </div>
             </div>
             <div className="mb-5 overflow-x-auto rounded-xl border border-[var(--border-soft)]">
               <table className="w-full border-collapse text-xs">
@@ -396,10 +414,16 @@ const MealCell = memo(function MealCell({
     lastEmitted.current = serialized;
 
     // Recalcula kcal e macros a partir do catálogo sempre que os itens mudam.
-    // Se nenhum item casou com o catálogo, preserva o valor digitado à mão.
+    // Se nenhum item casou com o catálogo, preserva o valor digitado à mão —
+    // exceto ao limpar a célula inteira, onde os valores voltam a zero.
     const macros = calculateMealMacros(serialized, foods);
     const patch: Partial<MealSlot> = { descricao: serialized };
-    if (macros.kcal > 0) {
+    if (newRows.length === 0) {
+      patch.kcal = 0;
+      patch.proteina_g = 0;
+      patch.carboidrato_g = 0;
+      patch.gordura_g = 0;
+    } else if (macros.kcal > 0) {
       patch.kcal = macros.kcal;
       patch.proteina_g = macros.proteina_g;
       patch.carboidrato_g = macros.carboidrato_g;
@@ -451,9 +475,21 @@ const MealCell = memo(function MealCell({
             </button>
           </div>
         ))}
-        <button type="button" onClick={addRow} className="text-left text-[10.5px] font-semibold text-brand">
-          + alimento
-        </button>
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={addRow} className="text-left text-[10.5px] font-semibold text-brand">
+            + alimento
+          </button>
+          {rows.some((r) => r.name.trim()) && (
+            <button
+              type="button"
+              onClick={() => commit([])}
+              className="text-[10.5px] font-semibold text-danger"
+              title="Limpar todos os itens desta refeição"
+            >
+              limpar
+            </button>
+          )}
+        </div>
         {missingGrams && <span className="text-[10px] font-semibold text-warning">⚠ falta a quantidade (g)</span>}
         {unmatched.length > 0 && (
           <span className="text-[10px] text-[var(--ink-faint)]">
