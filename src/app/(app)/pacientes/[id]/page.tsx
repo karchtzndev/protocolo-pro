@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
-import type { Patient, Protocol, PatientSupplement, Exam, ExamResult, AnthropometryRecord, FoodCatalogItem, SupplementCatalogItem, SupplementPreset, Appointment, AnamnesisResponse, CompoundedFormula } from "@/lib/types";
+import type { Patient, Protocol, PatientSupplement, Exam, ExamResult, AnthropometryRecord, FoodCatalogItem, SupplementCatalogItem, SupplementPreset, Appointment, AnamnesisResponse, CompoundedFormula, MealCheckin, Recipe } from "@/lib/types";
 import { CadastroTab } from "./CadastroTab";
 import { ProtocoloTab } from "./ProtocoloTab";
 import { ComposicaoTab } from "./ComposicaoTab";
@@ -26,7 +26,7 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
     .single();
   const enabledModules = nutritionist?.enabled_modules ?? [];
 
-  const [{ data: protocol }, { data: patientSupplements }, { data: catalog }, { data: exams }, { data: anthropometry }, { data: foods }, { data: presets }, { data: protocolHistory }, { data: appointments }, { data: anamnesisResponses }, { data: formulas }] = await Promise.all([
+  const [{ data: protocol }, { data: patientSupplements }, { data: catalog }, { data: exams }, { data: anthropometry }, { data: foods }, { data: presets }, { data: protocolHistory }, { data: appointments }, { data: anamnesisResponses }, { data: formulas }, { data: checkins }, { data: recipes }] = await Promise.all([
     supabase
       .from("protocols")
       .select("*")
@@ -77,6 +77,13 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
       .eq("patient_id", id)
       .order("created_at", { ascending: false })
       .returns<CompoundedFormula[]>(),
+    supabase
+      .from("meal_checkins")
+      .select("*")
+      .eq("patient_id", id)
+      .gte("checkin_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
+      .returns<MealCheckin[]>(),
+    supabase.from("recipes").select("*").order("name").returns<Recipe[]>(),
   ]);
 
   const age = yearsSince(patient.birth_date);
@@ -125,6 +132,8 @@ export default async function FichaPacientePage({ params }: { params: Promise<{ 
                   preferredFoodIds={preferredFoodIds}
                   excludedFoodNames={excludedFoodNames}
                   enabledModules={enabledModules}
+                  checkins={checkins ?? []}
+                  recipes={recipes ?? []}
                 />
               ),
             },

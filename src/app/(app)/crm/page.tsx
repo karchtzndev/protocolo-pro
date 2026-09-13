@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { screenPatient } from "@/lib/clinicalScreening";
-import type { CrmStage, Patient } from "@/lib/types";
+import type { CrmStage, MealCheckin, Patient } from "@/lib/types";
+import { evaluateEngagement } from "@/lib/engagement";
 import { PatientCard } from "./PatientCard";
 import { CopyLinkButton } from "../links/CopyLinkButton";
 import { ensureBookingSlug } from "./actions";
@@ -11,11 +12,21 @@ export default async function CrmPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: stages }, { data: patients }, { data: nutritionist }] = await Promise.all([
+  const [{ data: stages }, { data: patients }, { data: nutritionist }, { data: recentCheckins }] = await Promise.all([
     supabase.from("crm_stages").select("*").order("position").returns<CrmStage[]>(),
     supabase.from("patients").select("*").neq("status", "inativo").returns<Patient[]>(),
     supabase.from("nutritionists").select("booking_slug").eq("id", user?.id ?? "").single(),
+    supabase
+      .from("meal_checkins")
+      .select("*")
+      .gte("checkin_date", new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10))
+      .returns<MealCheckin[]>(),
   ]);
+
+  const checkinsByPatient = new Map<string, MealCheckin[]>();
+  for (const c of recentCheckins ?? []) {
+    checkinsByPatient.set(c.patient_id, [...(checkinsByPatient.get(c.patient_id) ?? []), c]);
+  }
 
   let bookingSlug = nutritionist?.booking_slug ?? null;
   if (!bookingSlug) bookingSlug = await ensureBookingSlug();
@@ -49,7 +60,13 @@ export default async function CrmPage() {
               <div className="flex flex-col gap-2">
                 {stagePatients.length ? (
                   stagePatients.map((p) => (
-                    <PatientCard key={p.id} patient={p} stages={stages ?? []} flagged={screenPatient(p).flagged} />
+                    <PatientCard
+                      key={p.id}
+                      patient={p}
+                      stages={stages ?? []}
+                      flagged={screenPatient(p).flagged}
+                      churnReason={evaluateEngagement(p, checkinsByPatient.get(p.id) ?? []).reason}
+                    />
                   ))
                 ) : (
                   <p className="rounded-lg border border-dashed border-[var(--border)] p-3 text-center text-[11px] text-[var(--ink-faint)]">

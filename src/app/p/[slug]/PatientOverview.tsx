@@ -7,12 +7,16 @@ import type {
   FoodCatalogItem,
   SubscriptionPlan,
   PatientSubscription,
+  MealCheckin,
+  Recipe,
 } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
 import { ShareButtons } from "./ShareButtons";
 import { AnamnesisForm } from "./AnamnesisForm";
 import { PlanSubscriptionCard } from "./PlanSubscriptionCard";
 import { MealItemsList } from "@/components/diet/MealItemsList";
+import { MealCheckinButtons } from "./MealCheckinButtons";
+import { RecipeDisclosure } from "./RecipeDisclosure";
 
 const DAY_KEYS: (keyof NonNullable<Protocol["weekly_menu"]>)[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 
@@ -26,6 +30,8 @@ export function PatientOverview({
   foods,
   plans,
   subscription,
+  todayCheckins,
+  recipes,
 }: {
   patient: Patient;
   nutritionist: Nutritionist;
@@ -36,6 +42,8 @@ export function PatientOverview({
   foods: FoodCatalogItem[];
   plans: SubscriptionPlan[];
   subscription: PatientSubscription | null;
+  todayCheckins: MealCheckin[];
+  recipes: Recipe[];
 }) {
   const todayKey = DAY_KEYS[new Date().getDay()];
   const todayMenu = protocol?.weekly_menu[todayKey] ?? {};
@@ -80,9 +88,16 @@ export function PatientOverview({
                 <div className="w-11 shrink-0 pt-0.5 font-mono-data text-[11px] text-[var(--ink-faint)]">
                   {time}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <b className="block text-[13.5px]">{label}</b>
                   <MealItemsList descricao={meal.descricao} className="text-xs text-[var(--ink-soft)]" />
+                  {meal.receita_id && <RecipeDisclosure recipe={recipes.find((r) => r.id === meal.receita_id)} />}
+                  <MealCheckinButtons
+                    slug={slug}
+                    patientId={patient.id}
+                    mealKey={mealKey}
+                    current={todayCheckins.find((c) => c.meal_key === mealKey)?.status ?? null}
+                  />
                   <div className="mt-1.5 flex gap-1.5">
                     <Macro tone="accent">{meal.kcal} kcal</Macro>
                     {meal.proteina_g && <Macro tone="success">P {meal.proteina_g}g</Macro>}

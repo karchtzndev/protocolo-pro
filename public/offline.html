@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sem conexão — Protocolo.Pro</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, sans-serif;
+        background: #f6f4ee;
+        color: #1b211d;
+        padding: 24px;
+      }
+      .card {
+        max-width: 340px;
+        text-align: center;
+        background: #fff;
+        border: 1px solid #e9e5d8;
+        border-radius: 16px;
+        padding: 32px 24px;
+      }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      p { font-size: 14px; color: #5b6259; margin: 0; line-height: 1.5; }
+      .mark {
+        width: 40px; height: 40px; border-radius: 10px; background: #1f4b3f; color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; margin: 0 auto 16px;
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: #101a16; color: #ece9df; }
+        .card { background: #16221d; border-color: #233029; }
+        p { color: #a9b3a9; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark">P</div>
+      <h1>Você está sem conexão</h1>
+      <p>Abra o app novamente quando tiver internet. O último protocolo que você visualizou continua disponível offline.</p>
+    </div>
+  </body>
+</html>

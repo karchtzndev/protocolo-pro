@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/Card";
-import type { AuditLogEntry, Exam } from "@/lib/types";
+import type { AuditLogEntry, Exam, MealCheckin, Patient } from "@/lib/types";
+import { evaluateEngagement } from "@/lib/engagement";
 
 const REASSESSMENT_STALE_DAYS = 60;
 const EXAM_STALE_DAYS = 180;
@@ -37,6 +38,7 @@ export default async function DashboardPage() {
     { data: anthropometryDates },
     { data: upcomingAppointments },
     { data: examDates },
+    { data: recentCheckins },
   ] = await Promise.all([
     supabase.from("patients").select("*", { count: "exact", head: true }),
     supabase.from("protocols").select("*", { count: "exact", head: true }).eq("active", true),
@@ -49,7 +51,11 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(5)
       .returns<AuditLogEntry[]>(),
-    supabase.from("patients").select("id, full_name").eq("status", "ativo"),
+    supabase
+      .from("patients")
+      .select("id, full_name, last_portal_access_at, created_at")
+      .eq("status", "ativo")
+      .returns<Pick<Patient, "id" | "full_name" | "last_portal_access_at" | "created_at">[]>(),
     supabase.from("anthropometry_records").select("patient_id, recorded_at").order("recorded_at", { ascending: false }),
     supabase
       .from("appointments")
@@ -64,6 +70,11 @@ export default async function DashboardPage() {
       .select("patient_id, exam_date, created_at")
       .order("created_at", { ascending: false })
       .returns<Pick<Exam, "patient_id" | "exam_date" | "created_at">[]>(),
+    supabase
+      .from("meal_checkins")
+      .select("*")
+      .gte("checkin_date", new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10))
+      .returns<MealCheckin[]>(),
   ]);
 
   const latestAssessmentByPatient = new Map<string, string>();
@@ -97,6 +108,17 @@ export default async function DashboardPage() {
       return days > EXAM_STALE_DAYS;
     });
 
+  // Alerta preditivo de evasão: cruza último acesso ao portal com os registros
+  // do diário alimentar da semana.
+  const checkinsByPatient = new Map<string, MealCheckin[]>();
+  for (const c of recentCheckins ?? []) {
+    checkinsByPatient.set(c.patient_id, [...(checkinsByPatient.get(c.patient_id) ?? []), c]);
+  }
+  const churnRisk = (activePatients ?? [])
+    .map((p) => ({ patient: p, signal: evaluateEngagement(p, checkinsByPatient.get(p.id) ?? []) }))
+    .filter((entry) => entry.signal.atRisk)
+    .sort((a, b) => a.signal.score - b.signal.score);
+
   const firstName = nutritionist?.full_name?.split(" ")[0] ?? "";
   const today = new Intl.DateTimeFormat("pt-BR", {
     weekday: "long",
@@ -121,8 +143,29 @@ export default async function DashboardPage() {
         <StatCard label="Plano" value={nutritionist?.plan === "clinica" ? "Clínica" : "Solo"} isText />
       </div>
 
-      {(staleReassessments.length > 0 || staleExams.length > 0 || (upcomingAppointments ?? []).length > 0) && (
+      {(staleReassessments.length > 0 ||
+        staleExams.length > 0 ||
+        churnRisk.length > 0 ||
+        (upcomingAppointments ?? []).length > 0) && (
         <div className="mb-6 grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+          {churnRisk.length > 0 && (
+            <Card>
+              <div className="border-b border-[var(--border-soft)] px-5 py-3.5">
+                <h3 className="text-sm font-semibold">📉 Risco de evasão ({churnRisk.length})</h3>
+              </div>
+              <ul className="px-5 py-2">
+                {churnRisk.slice(0, 5).map(({ patient, signal }) => (
+                  <li key={patient.id} className="border-b border-dashed border-[var(--border-soft)] py-2 text-sm last:border-none">
+                    <Link href={`/pacientes/${patient.id}`} className="hover:underline">
+                      {patient.full_name}
+                    </Link>
+                    <span className="ml-1.5 text-xs text-[var(--ink-soft)]">{signal.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
           {staleReassessments.length > 0 && (
             <Card>
               <div className="border-b border-[var(--border-soft)] px-5 py-3.5">

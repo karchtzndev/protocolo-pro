@@ -6,9 +6,9 @@ import { sendBroadcast } from "./actions";
 export default async function BroadcastPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string }>;
+  searchParams: Promise<{ sent?: string; envio?: string }>;
 }) {
-  const { sent } = await searchParams;
+  const { sent, envio } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -41,13 +41,29 @@ export default async function BroadcastPage({
           <p className="mb-2 text-sm font-semibold text-success">
             Comunicado &ldquo;{justSent.title}&rdquo; registrado para {justSent.recipient_count} paciente(s).
           </p>
-          {justSentEmails.length > 0 ? (
-            <a
-              href={`mailto:?bcc=${encodeURIComponent(justSentEmails.join(","))}&subject=${encodeURIComponent(justSent.title)}&body=${encodeURIComponent(justSent.body)}`}
-              className="text-xs font-bold underline"
-            >
-              Abrir no seu e-mail para {justSentEmails.length} destinatário(s) com e-mail cadastrado
-            </a>
+          {envio === "automatico" ? (
+            <p className="text-xs text-[var(--ink-soft)]">
+              ✉ Enviado automaticamente para {justSentEmails.length} destinatário(s) com e-mail cadastrado.
+            </p>
+          ) : justSentEmails.length > 0 ? (
+            <>
+              <a
+                href={`mailto:?bcc=${encodeURIComponent(justSentEmails.join(","))}&subject=${encodeURIComponent(justSent.title)}&body=${encodeURIComponent(justSent.body)}`}
+                className="text-xs font-bold underline"
+              >
+                Abrir no seu e-mail para {justSentEmails.length} destinatário(s) com e-mail cadastrado
+              </a>
+              {envio === "not_configured" && (
+                <p className="mt-1.5 text-[11px] text-[var(--ink-soft)]">
+                  Envio automático ainda não configurado — falta a chave do provedor de e-mail.
+                </p>
+              )}
+              {envio === "error" && (
+                <p className="mt-1.5 text-[11px] text-warning">
+                  O envio automático falhou; use o link acima para enviar manualmente.
+                </p>
+              )}
+            </>
           ) : (
             <p className="text-xs text-[var(--ink-soft)]">Nenhum paciente do filtro tem e-mail cadastrado.</p>
           )}

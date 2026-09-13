@@ -2,8 +2,9 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import type { AnthropometryRecord, DayMenu, FoodCatalogItem, Patient, Protocol, WeeklyMenu } from "@/lib/types";
+import type { AnthropometryRecord, DayMenu, FoodCatalogItem, MealSlot, Patient, Protocol, Recipe, WeeklyMenu } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
+import { calculateMealMacros, dayTotalKcal } from "@/lib/diet/mealMacros";
 import { MEAL_PRESET_LIST, type MealPresetKey } from "@/lib/mealPresets";
 import { calculateEnergyEquations } from "@/lib/health/energyEquations";
 import { generateWeeklyMenu, SafeCalorieFloorError, type DietObjective } from "@/lib/diet/generateProtocol";
@@ -32,6 +33,7 @@ export function ProtocolEditorDialog({
   preferredFoodIds,
   excludedFoodNames,
   enabledModules,
+  recipes,
 }: {
   patient: Patient;
   protocol: Protocol | null;
@@ -40,6 +42,7 @@ export function ProtocolEditorDialog({
   preferredFoodIds: string[];
   excludedFoodNames: string[];
   enabledModules: string[];
+  recipes: Recipe[];
 }) {
   const visiblePresets = MEAL_PRESET_LIST.filter((p) => p.module === "geral" || enabledModules.includes(p.module));
   const [open, setOpen] = useState(false);
@@ -116,20 +119,11 @@ export function ProtocolEditorDialog({
     }
   }
 
-  const updateSlot = useCallback((day: keyof WeeklyMenu, meal: keyof DayMenu, field: "descricao" | "kcal", value: string) => {
+  const patchSlot = useCallback((day: keyof WeeklyMenu, meal: keyof DayMenu, patch: Partial<MealSlot>) => {
     setWeeklyMenu((prev) => {
       const daySlots = prev[day] ?? {};
       const slot = daySlots[meal] ?? { descricao: "", kcal: 0 };
-      return {
-        ...prev,
-        [day]: {
-          ...daySlots,
-          [meal]: {
-            ...slot,
-            [field]: field === "kcal" ? Number(value) || 0 : value,
-          },
-        },
-      };
+      return { ...prev, [day]: { ...daySlots, [meal]: { ...slot, ...patch } } };
     });
   }, []);
 
@@ -265,14 +259,22 @@ export function ProtocolEditorDialog({
                     <th className="sticky left-0 whitespace-nowrap bg-[var(--surface-2)] px-2 py-2 text-left font-bold uppercase tracking-wide text-[var(--ink-soft)]">
                       Refeição
                     </th>
-                    {DAYS.map((d) => (
-                      <th
-                        key={d.key}
-                        className="min-w-[150px] whitespace-nowrap bg-[var(--surface-2)] px-2 py-2 text-left font-bold uppercase tracking-wide text-[var(--ink-soft)]"
-                      >
-                        {d.label}
-                      </th>
-                    ))}
+                    {DAYS.map((d) => {
+                      const total = dayTotalKcal(weeklyMenu[d.key]);
+                      return (
+                        <th
+                          key={d.key}
+                          className="min-w-[150px] whitespace-nowrap bg-[var(--surface-2)] px-2 py-2 text-left font-bold uppercase tracking-wide text-[var(--ink-soft)]"
+                        >
+                          {d.label}
+                          {total > 0 && (
+                            <span className="ml-1.5 font-mono-data text-[10px] font-semibold normal-case text-accent-strong">
+                              {total} kcal
+                            </span>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -288,7 +290,8 @@ export function ProtocolEditorDialog({
                           meal={meal.key}
                           slot={weeklyMenu[d.key]?.[meal.key]}
                           foods={foods}
-                          onUpdate={updateSlot}
+                          recipes={recipes}
+                          onPatch={patchSlot}
                           onSubstitute={substituteFood}
                         />
                       ))}
@@ -361,14 +364,16 @@ const MealCell = memo(function MealCell({
   meal,
   slot,
   foods,
-  onUpdate,
+  recipes,
+  onPatch,
   onSubstitute,
 }: {
   day: keyof WeeklyMenu;
   meal: keyof DayMenu;
   slot: DayMenu[keyof DayMenu];
   foods: FoodCatalogItem[];
-  onUpdate: (day: keyof WeeklyMenu, meal: keyof DayMenu, field: "descricao" | "kcal", value: string) => void;
+  recipes: Recipe[];
+  onPatch: (day: keyof WeeklyMenu, meal: keyof DayMenu, patch: Partial<MealSlot>) => void;
   onSubstitute: (day: keyof WeeklyMenu, meal: keyof DayMenu, foodId: string) => void;
 }) {
   const [rows, setRows] = useState<MealItemRow[]>(() => toRows(parseMealItems(slot?.descricao)));
@@ -389,7 +394,18 @@ const MealCell = memo(function MealCell({
     setRows(newRows);
     const serialized = serializeMealItems(newRows);
     lastEmitted.current = serialized;
-    onUpdate(day, meal, "descricao", serialized);
+
+    // Recalcula kcal e macros a partir do catálogo sempre que os itens mudam.
+    // Se nenhum item casou com o catálogo, preserva o valor digitado à mão.
+    const macros = calculateMealMacros(serialized, foods);
+    const patch: Partial<MealSlot> = { descricao: serialized };
+    if (macros.kcal > 0) {
+      patch.kcal = macros.kcal;
+      patch.proteina_g = macros.proteina_g;
+      patch.carboidrato_g = macros.carboidrato_g;
+      patch.gordura_g = macros.gordura_g;
+    }
+    onPatch(day, meal, patch);
   }
 
   function updateRow(id: number, field: "name" | "grams", value: string) {
@@ -406,6 +422,7 @@ const MealCell = memo(function MealCell({
   }
 
   const missingGrams = rows.some((r) => r.name.trim() && !r.grams.trim());
+  const unmatched = calculateMealMacros(serializeMealItems(rows), foods).unmatched;
 
   return (
     <td className="border-t border-[var(--border-soft)] bg-[var(--surface)] px-2 py-2">
@@ -438,14 +455,23 @@ const MealCell = memo(function MealCell({
           + alimento
         </button>
         {missingGrams && <span className="text-[10px] font-semibold text-warning">⚠ falta a quantidade (g)</span>}
+        {unmatched.length > 0 && (
+          <span className="text-[10px] text-[var(--ink-faint)]">
+            fora do catálogo (não somado): {unmatched.join(", ")}
+          </span>
+        )}
       </div>
-      <input
-        type="number"
-        value={slot?.kcal ?? ""}
-        onChange={(e) => onUpdate(day, meal, "kcal", e.target.value)}
-        className="mb-1 w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
-        placeholder="kcal"
-      />
+      <div className="mb-1 flex items-center gap-1">
+        <input
+          type="number"
+          value={slot?.kcal ?? ""}
+          onChange={(e) => onPatch(day, meal, { kcal: Number(e.target.value) || 0 })}
+          className="w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
+          placeholder="kcal"
+          title="Calculado automaticamente pelo catálogo — edite para sobrescrever"
+        />
+        <span className="shrink-0 text-[10px] text-[var(--ink-faint)]">kcal</span>
+      </div>
       {foods.length > 0 && (
         <select
           value=""
@@ -456,6 +482,20 @@ const MealCell = memo(function MealCell({
           {foods.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {recipes.length > 0 && (
+        <select
+          value={slot?.receita_id ?? ""}
+          onChange={(e) => onPatch(day, meal, { receita_id: e.target.value || undefined })}
+          className="mt-1 w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-1 py-1 text-[10px] text-[var(--ink-soft)] outline-none focus:border-brand"
+        >
+          <option value="">👩‍🍳 sem receita</option>
+          {recipes.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
             </option>
           ))}
         </select>

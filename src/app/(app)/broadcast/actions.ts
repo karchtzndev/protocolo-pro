@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveSubscription } from "@/lib/auth/requireActiveSubscription";
+import { sendEmail } from "@/lib/email";
 import type { Patient } from "@/lib/types";
 
 export async function sendBroadcast(formData: FormData) {
@@ -31,5 +32,10 @@ export async function sendBroadcast(formData: FormData) {
     .single();
   if (error) throw new Error(error.message);
 
-  redirect(`/broadcast?sent=${broadcast.id}`);
+  // Tenta o envio automático; se não houver provedor configurado, a tela
+  // continua oferecendo o envio manual por mailto.
+  const emails = (recipients ?? []).map((p) => p.email).filter((e): e is string => !!e);
+  const result = await sendEmail({ to: emails, subject: title, text: body, replyTo: user.email });
+
+  redirect(`/broadcast?sent=${broadcast.id}&envio=${result.sent ? "automatico" : result.reason}`);
 }

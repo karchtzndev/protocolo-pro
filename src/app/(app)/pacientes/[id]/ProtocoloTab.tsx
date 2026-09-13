@@ -1,9 +1,10 @@
-import type { AnthropometryRecord, FoodCatalogItem, Patient, Protocol } from "@/lib/types";
+import type { AnthropometryRecord, FoodCatalogItem, MealCheckin, Patient, Protocol, Recipe } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ProtocolEditorDialog } from "./ProtocolEditorDialog";
 import { MealItemsList } from "@/components/diet/MealItemsList";
+import { AdherencePanel } from "./AdherencePanel";
 
 const STALE_AFTER_DAYS = 60;
 
@@ -32,6 +33,8 @@ export function ProtocoloTab({
   preferredFoodIds,
   excludedFoodNames,
   enabledModules,
+  checkins,
+  recipes,
 }: {
   patient: Patient;
   protocol: Protocol | null;
@@ -41,6 +44,8 @@ export function ProtocoloTab({
   preferredFoodIds: string[];
   excludedFoodNames: string[];
   enabledModules: string[];
+  checkins: MealCheckin[];
+  recipes: Recipe[];
 }) {
   if (!protocol) {
     return (
@@ -57,6 +62,7 @@ export function ProtocoloTab({
             preferredFoodIds={preferredFoodIds}
             excludedFoodNames={excludedFoodNames}
             enabledModules={enabledModules}
+            recipes={recipes}
           />
         </div>
         <ProtocolHistory history={history} />
@@ -86,8 +92,11 @@ export function ProtocoloTab({
           preferredFoodIds={preferredFoodIds}
           excludedFoodNames={excludedFoodNames}
           enabledModules={enabledModules}
+          recipes={recipes}
         />
       </div>
+
+      <AdherencePanel checkins={checkins} />
 
       <div className="mb-6 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
         <AnthroTile value={protocol.weight_kg ? `${protocol.weight_kg} kg` : "—"} label="Peso" />

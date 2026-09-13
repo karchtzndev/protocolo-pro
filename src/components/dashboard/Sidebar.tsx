@@ -8,8 +8,10 @@ const items = [
   { href: "/crm", label: "CRM", icon: "🗂" },
   { href: "/pacientes", label: "Pacientes", icon: "◔" },
   { href: "/agendamentos", label: "Agendamentos", icon: "📅" },
+  { href: "/receitas", label: "Receitas", icon: "🍳" },
   { href: "/broadcast", label: "Broadcast", icon: "📣" },
   { href: "/planos", label: "Planos", icon: "💳" },
+  { href: "/equipe", label: "Equipe", icon: "👥" },
   { href: "/configuracoes", label: "Configurações", icon: "⚙" },
   { href: "/links", label: "Links de Pacientes", icon: "⛓" },
 ];

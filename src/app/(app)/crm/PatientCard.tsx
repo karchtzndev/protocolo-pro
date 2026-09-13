@@ -10,10 +10,12 @@ export function PatientCard({
   patient,
   stages,
   flagged,
+  churnReason,
 }: {
   patient: Patient;
   stages: CrmStage[];
   flagged: boolean;
+  churnReason?: string | null;
 }) {
   const [editingTags, setEditingTags] = useState(false);
   const [tagsInput, setTagsInput] = useState(patient.tags.join(", "));
@@ -26,9 +28,10 @@ export function PatientCard({
       </Link>
       <span className="block truncate text-[11px] text-[var(--ink-soft)]">{patient.objective ?? "—"}</span>
 
-      {flagged && (
-        <div className="mt-1.5">
-          <Badge tone="warning">⚠ atenção</Badge>
+      {(flagged || churnReason) && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {flagged && <Badge tone="warning">⚠ atenção</Badge>}
+          {churnReason && <Badge tone="danger">📉 {churnReason}</Badge>}
         </div>
       )}
 

@@ -4,6 +4,8 @@ export type MealSlot = {
   proteina_g?: number;
   carboidrato_g?: number;
   gordura_g?: number;
+  /** Receita da biblioteca vinculada a esta refeição (modo de preparo). */
+  receita_id?: string;
 };
 
 export type DayMenu = {
@@ -47,6 +49,46 @@ export interface Nutritionist {
   stripe_connect_account_id: string | null;
   stripe_connect_onboarded: boolean;
   enabled_modules: NutritionModule[];
+  clinic_id: string;
+  created_at: string;
+}
+
+export interface ClinicInvite {
+  id: string;
+  clinic_id: string;
+  email: string;
+  token: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export type MealCheckinStatus = "feito" | "parcial" | "pulado";
+
+export interface MealCheckin {
+  id: string;
+  patient_id: string;
+  checkin_date: string;
+  meal_key: keyof DayMenu;
+  status: MealCheckinStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface RecipeIngredient {
+  name: string;
+  quantity: string;
+}
+
+export interface Recipe {
+  id: string;
+  nutritionist_id: string;
+  name: string;
+  description: string | null;
+  instructions: string;
+  ingredients: RecipeIngredient[];
+  prep_time_min: number | null;
   created_at: string;
 }
 
@@ -146,6 +188,8 @@ export interface Patient {
   status: PatientStatus;
   stage_id: string | null;
   tags: string[];
+  last_portal_access_at: string | null;
+  engagement_score: number;
   created_at: string;
 }
 

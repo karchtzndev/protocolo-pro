@@ -5,6 +5,7 @@ import { calculateEnergyEquations, ACTIVITY_LEVEL_LABELS, type Sex, type Activit
 import { calculateSkinfoldProtocols } from "@/lib/health/skinfolds";
 import { calculateIndices } from "@/lib/health/indices";
 import { AnthropometryDialog } from "./AnthropometryDialog";
+import { EvolutionChart, type EvolutionPoint } from "@/components/charts/EvolutionChart";
 
 export function ComposicaoTab({ patient, records }: { patient: Patient; records: AnthropometryRecord[] }) {
   const latest = records[0];
@@ -29,6 +30,7 @@ export function ComposicaoTab({ patient, records }: { patient: Patient; records:
       ) : (
         <>
           <IndicesSection latest={latest} sex={patient.sex} />
+          <EvolutionSection records={records} sex={sex} age={age} />
           <EnergySection latest={latest} sex={sex} age={age} />
           <SkinfoldsSection latest={latest} sex={sex} age={age} />
         </>
@@ -59,6 +61,50 @@ export function ComposicaoTab({ patient, records }: { patient: Patient; records:
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Cada métrica em seu próprio gráfico (small multiples): peso, gordura e
+ * cintura têm escalas incompatíveis, e um eixo duplo inventaria correlação.
+ */
+function EvolutionSection({ records, sex, age }: { records: AnthropometryRecord[]; sex: Sex; age: number }) {
+  // `records` chega do mais recente pro mais antigo; o gráfico lê da esquerda (passado) pra direita.
+  const chronological = [...records].reverse();
+  const label = (r: AnthropometryRecord) =>
+    new Date(r.recorded_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+
+  const weight: EvolutionPoint[] = chronological.map((r) => ({ date: label(r), value: r.weight_kg }));
+  const waist: EvolutionPoint[] = chronological
+    .filter((r) => r.waist_cm != null)
+    .map((r) => ({ date: label(r), value: r.waist_cm as number }));
+  const bodyFat: EvolutionPoint[] = chronological
+    .map((r) => {
+      const best = calculateSkinfoldProtocols({
+        sex,
+        ageYears: age,
+        chest: r.skinfold_chest_mm,
+        midaxillary: r.skinfold_midaxillary_mm,
+        triceps: r.skinfold_triceps_mm,
+        subscapular: r.skinfold_subscapular_mm,
+        abdominal: r.skinfold_abdominal_mm,
+        suprailiac: r.skinfold_suprailiac_mm,
+        thigh: r.skinfold_thigh_mm,
+        bicep: r.skinfold_bicep_mm,
+      }).find((p) => p.available);
+      return best?.bodyFatPct != null ? { date: label(r), value: best.bodyFatPct } : null;
+    })
+    .filter((p): p is EvolutionPoint => p !== null);
+
+  return (
+    <div className="mb-6">
+      <h3 className="mb-3 text-sm font-semibold">Evolução</h3>
+      <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+        <EvolutionChart title="Peso" unit="kg" points={weight} />
+        <EvolutionChart title="Gordura corporal" unit="%" points={bodyFat} />
+        <EvolutionChart title="Cintura" unit="cm" points={waist} />
       </div>
     </div>
   );

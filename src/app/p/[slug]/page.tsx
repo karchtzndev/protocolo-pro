@@ -11,6 +11,8 @@ import type {
   FoodCatalogItem,
   SubscriptionPlan,
   PatientSubscription,
+  MealCheckin,
+  Recipe,
 } from "@/lib/types";
 import { PatientGate } from "./PatientGate";
 import { PatientOverview } from "./PatientOverview";
@@ -42,8 +44,16 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
     );
   }
 
-  const [{ data: protocol }, { data: supplements }, { data: pendingAnamnesis }, { data: foods }, { data: plans }, { data: subscription }] =
-    await Promise.all([
+  const [
+    { data: protocol },
+    { data: supplements },
+    { data: pendingAnamnesis },
+    { data: foods },
+    { data: plans },
+    { data: subscription },
+    { data: todayCheckins },
+    { data: recipes },
+  ] = await Promise.all([
       supabase
         .from("protocols")
         .select("*")
@@ -76,6 +86,17 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
         .eq("patient_id", link.patient.id)
         .in("status", ["trialing", "active", "past_due"])
         .maybeSingle<PatientSubscription>(),
+      supabase
+        .from("meal_checkins")
+        .select("*")
+        .eq("patient_id", link.patient.id)
+        .eq("checkin_date", new Date().toISOString().slice(0, 10))
+        .returns<MealCheckin[]>(),
+      supabase
+        .from("recipes")
+        .select("*")
+        .eq("nutritionist_id", link.patient.nutritionist.id)
+        .returns<Recipe[]>(),
     ]);
 
   return (
@@ -89,6 +110,8 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
       foods={foods ?? []}
       plans={plans ?? []}
       subscription={subscription}
+      todayCheckins={todayCheckins ?? []}
+      recipes={recipes ?? []}
     />
   );
 }
