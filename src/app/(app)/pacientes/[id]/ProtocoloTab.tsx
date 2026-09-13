@@ -3,6 +3,7 @@ import { MEAL_SCHEDULE } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ProtocolEditorDialog } from "./ProtocolEditorDialog";
+import { MealItemsList } from "@/components/diet/MealItemsList";
 
 const STALE_AFTER_DAYS = 60;
 
@@ -127,7 +128,7 @@ export function ProtocoloTab({
                     <td key={d.key} className="border-t border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5">
                       {slot ? (
                         <>
-                          {slot.descricao}
+                          <MealItemsList descricao={slot.descricao} />
                           <span className="mt-1 block font-mono-data text-[10.5px] font-semibold text-accent-strong">
                             {slot.kcal} kcal
                           </span>

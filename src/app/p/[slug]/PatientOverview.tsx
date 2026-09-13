@@ -12,6 +12,7 @@ import { MEAL_SCHEDULE } from "@/lib/types";
 import { ShareButtons } from "./ShareButtons";
 import { AnamnesisForm } from "./AnamnesisForm";
 import { PlanSubscriptionCard } from "./PlanSubscriptionCard";
+import { MealItemsList } from "@/components/diet/MealItemsList";
 
 const DAY_KEYS: (keyof NonNullable<Protocol["weekly_menu"]>)[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 
@@ -81,7 +82,7 @@ export function PatientOverview({
                 </div>
                 <div>
                   <b className="block text-[13.5px]">{label}</b>
-                  <span className="text-xs text-[var(--ink-soft)]">{meal.descricao}</span>
+                  <MealItemsList descricao={meal.descricao} className="text-xs text-[var(--ink-soft)]" />
                   <div className="mt-1.5 flex gap-1.5">
                     <Macro tone="accent">{meal.kcal} kcal</Macro>
                     {meal.proteina_g && <Macro tone="success">P {meal.proteina_g}g</Macro>}
