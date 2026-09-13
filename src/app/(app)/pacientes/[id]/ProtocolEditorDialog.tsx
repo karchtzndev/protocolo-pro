@@ -275,11 +275,17 @@ export function ProtocolEditorDialog({
               />
             </div>
 
+            <datalist id="foods-catalog-datalist">
+              {foods.map((f) => (
+                <option key={f.id} value={f.name} />
+              ))}
+            </datalist>
+
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
               <FieldLabel>Cardápio — 7 dias</FieldLabel>
               <div className="flex items-center gap-3">
                 <span className="text-[10.5px] text-[var(--ink-faint)]">
-                  Sempre informe a quantidade em gramas de cada alimento — evita o paciente ficar perdido.
+                  Digite ou escolha do catálogo — a gramatura da porção usual entra sozinha.
                 </span>
                 <button
                   type="button"
@@ -453,7 +459,22 @@ const MealCell = memo(function MealCell({
   }
 
   function updateRow(id: number, field: "name" | "grams", value: string) {
-    commit(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    commit(
+      rows.map((r) => {
+        if (r.id !== id) return r;
+        const updated = { ...r, [field]: value };
+
+        // Nome bateu com o catálogo e a gramatura ainda não foi digitada:
+        // pré-preenche com a porção usual (referência oficial da tabela),
+        // em vez de deixar o campo em branco esperando o profissional lembrar.
+        if (field === "name" && !r.grams.trim()) {
+          const match = foods.find((f) => f.name.toLowerCase() === value.trim().toLowerCase());
+          if (match) updated.grams = String(match.usual_portion_g);
+        }
+
+        return updated;
+      })
+    );
   }
 
   function removeRow(id: number) {
@@ -476,7 +497,9 @@ const MealCell = memo(function MealCell({
             <input
               value={row.name}
               onChange={(e) => updateRow(row.id, "name", e.target.value)}
+              list="foods-catalog-datalist"
               placeholder="Alimento"
+              title="Digite ou escolha da lista — a gramatura da porção usual entra sozinha"
               className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-1 text-[11px] outline-none focus:border-brand"
             />
             <input
