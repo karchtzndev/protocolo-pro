@@ -96,7 +96,7 @@ export function ProtocoloTab({
         />
       </div>
 
-      <AdherencePanel checkins={checkins} />
+      <AdherencePanel patientId={patient.id} checkins={checkins} />
 
       <div className="mb-6 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
         <AnthroTile value={protocol.weight_kg ? `${protocol.weight_kg} kg` : "—"} label="Peso" />

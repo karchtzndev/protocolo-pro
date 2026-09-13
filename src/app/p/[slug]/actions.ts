@@ -85,6 +85,31 @@ export async function recordMealCheckin(
   revalidatePath(`/p/${slug}`);
 }
 
+export async function subscribeToPush(
+  slug: string,
+  patientId: string,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
+) {
+  const cookieStore = await cookies();
+  if (cookieStore.get(`pl_${slug}`)?.value !== "granted") {
+    throw new Error("Sessão expirada — confirme o PIN novamente.");
+  }
+
+  const supabase = createServiceRoleClient();
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .upsert(
+      { patient_id: patientId, endpoint: subscription.endpoint, keys: subscription.keys },
+      { onConflict: "endpoint" }
+    );
+  if (error) throw new Error(error.message);
+}
+
+export async function unsubscribeFromPush(endpoint: string) {
+  const supabase = createServiceRoleClient();
+  await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+}
+
 export async function submitAnamnesis(slug: string, anamnesisId: string, formData: FormData) {
   const cookieStore = await cookies();
   const hasAccess = cookieStore.get(`pl_${slug}`)?.value === "granted";

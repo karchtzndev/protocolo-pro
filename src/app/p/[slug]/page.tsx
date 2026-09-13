@@ -112,6 +112,7 @@ export default async function PublicPatientPage({ params }: { params: Promise<{ 
       subscription={subscription}
       todayCheckins={todayCheckins ?? []}
       recipes={recipes ?? []}
+      vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
     />
   );
 }

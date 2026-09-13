@@ -1,5 +1,6 @@
 import type { MealCheckin } from "@/lib/types";
 import { MEAL_SCHEDULE } from "@/lib/types";
+import { SendReminderButton } from "./SendReminderButton";
 
 const DAYS_TRACKED = 7;
 
@@ -10,7 +11,7 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 /** Aderência do paciente nos últimos 7 dias, a partir do diário alimentar do portal. */
-export function AdherencePanel({ checkins }: { checkins: MealCheckin[] }) {
+export function AdherencePanel({ patientId, checkins }: { patientId: string; checkins: MealCheckin[] }) {
   const days = Array.from({ length: DAYS_TRACKED }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (DAYS_TRACKED - 1 - i));
@@ -26,11 +27,14 @@ export function AdherencePanel({ checkins }: { checkins: MealCheckin[] }) {
     <div className="mb-6 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold">Aderência — últimos 7 dias</h3>
-        {adherence !== null ? (
-          <span className="font-mono-data text-sm font-bold text-accent-strong">{adherence}%</span>
-        ) : (
-          <span className="text-xs text-[var(--ink-faint)]">sem registros ainda</span>
-        )}
+        <div className="flex items-center gap-3">
+          <SendReminderButton patientId={patientId} />
+          {adherence !== null ? (
+            <span className="font-mono-data text-sm font-bold text-accent-strong">{adherence}%</span>
+          ) : (
+            <span className="text-xs text-[var(--ink-faint)]">sem registros ainda</span>
+          )}
+        </div>
       </div>
 
       {answered.length === 0 ? (

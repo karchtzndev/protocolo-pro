@@ -23,6 +23,7 @@ const sections: NavSection[] = [
       { href: "/receitas", label: "Receitas", icon: "🍳" },
       { href: "/broadcast", label: "Broadcast", icon: "📣" },
       { href: "/planos", label: "Planos", icon: "💳" },
+      { href: "/financeiro", label: "Financeiro", icon: "📊" },
     ],
   },
   {

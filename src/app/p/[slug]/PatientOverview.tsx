@@ -17,6 +17,7 @@ import { PlanSubscriptionCard } from "./PlanSubscriptionCard";
 import { MealItemsList } from "@/components/diet/MealItemsList";
 import { MealCheckinButtons } from "./MealCheckinButtons";
 import { RecipeDisclosure } from "./RecipeDisclosure";
+import { PushOptIn } from "./PushOptIn";
 
 const DAY_KEYS: (keyof NonNullable<Protocol["weekly_menu"]>)[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 
@@ -32,6 +33,7 @@ export function PatientOverview({
   subscription,
   todayCheckins,
   recipes,
+  vapidPublicKey,
 }: {
   patient: Patient;
   nutritionist: Nutritionist;
@@ -44,6 +46,7 @@ export function PatientOverview({
   subscription: PatientSubscription | null;
   todayCheckins: MealCheckin[];
   recipes: Recipe[];
+  vapidPublicKey: string | null;
 }) {
   const todayKey = DAY_KEYS[new Date().getDay()];
   const todayMenu = protocol?.weekly_menu[todayKey] ?? {};
@@ -112,6 +115,8 @@ export function PatientOverview({
             <p className="py-3 text-sm text-[var(--ink-soft)]">Seu protocolo ainda está sendo preparado.</p>
           )}
         </Card>
+
+        {vapidPublicKey && <PushOptIn slug={slug} patientId={patient.id} vapidPublicKey={vapidPublicKey} />}
 
         {supplements.length > 0 && (
           <Card title="💊 Suplementação">

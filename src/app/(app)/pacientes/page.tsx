@@ -28,7 +28,15 @@ export default async function PacientesPage({
           <h1 className="text-2xl font-bold">Pacientes</h1>
           <p className="mt-1 text-sm text-[var(--ink-soft)]">{patients?.length ?? 0} pacientes cadastrados</p>
         </div>
-        <NewPatientDialog />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/pacientes/importar"
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm font-semibold text-[var(--ink-soft)] hover:border-brand hover:text-brand"
+          >
+            ⭱ Importar planilha
+          </Link>
+          <NewPatientDialog />
+        </div>
       </div>
 
       <form className="mb-4 flex flex-wrap items-center gap-2.5">

@@ -108,6 +108,14 @@ export interface SubstanceInteraction {
   description: string;
 }
 
+export interface PushSubscriptionRecord {
+  id: string;
+  patient_id: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  created_at: string;
+}
+
 export interface CompoundedFormula {
   id: string;
   nutritionist_id: string;
