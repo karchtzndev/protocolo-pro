@@ -2,7 +2,7 @@ import Dexie, { type Table } from "dexie";
 import type { DayMenu, MealCheckinStatus } from "./types";
 
 export interface LocalDiet {
-  id: string; // patientId
+  id: string;
   patientName: string;
   nutritionistName: string;
   clinicName: string | null;
@@ -18,7 +18,7 @@ export interface LocalDiet {
 export interface LocalMealCheckin {
   id?: number;
   patientId: string;
-  checkinDate: string; // YYYY-MM-DD
+  checkinDate: string;
   mealKey: string;
   status: MealCheckinStatus;
   syncStatus: "synced" | "pending";
@@ -29,8 +29,8 @@ export interface SyncQueueItem {
   id?: number;
   type: "meal_checkin" | "push_subscription" | "anamnesis";
   action: "upsert" | "delete";
-  endpoint: string; // API or Action name
-  payload: any;
+  endpoint: string;
+  payload: unknown;
   timestamp: number;
   retries: number;
 }
@@ -52,17 +52,11 @@ class ProtocoloProDatabase extends Dexie {
 
 export const db = new ProtocoloProDatabase();
 
-/**
- * Salva ou atualiza a dieta offline.
- */
 export async function saveDietOffline(diet: LocalDiet) {
   diet.lastModified = Date.now();
   await db.diets.put(diet);
 }
 
-/**
- * Adiciona um checkin de refeição offline e enfileira para sincronização.
- */
 export async function recordMealCheckinOffline(
   patientId: string,
   checkinDate: string,
@@ -70,38 +64,36 @@ export async function recordMealCheckinOffline(
   status: MealCheckinStatus
 ) {
   const timestamp = Date.now();
+  const existing = await db.checkins
+    .where("[patientId+checkinDate+mealKey]")
+    .equals([patientId, checkinDate, mealKey])
+    .first();
 
-  // Atualiza ou insere localmente
-  await db.checkins.put({
-    patientId,
-    checkinDate,
-    mealKey,
-    status,
-    syncStatus: "pending",
-    timestamp,
+  await db.transaction("rw", db.checkins, db.syncQueue, async () => {
+    await db.checkins.put({
+      id: existing?.id,
+      patientId,
+      checkinDate,
+      mealKey,
+      status,
+      syncStatus: "pending",
+      timestamp,
+    });
+    await db.syncQueue.add({
+      type: "meal_checkin",
+      action: "upsert",
+      endpoint: "recordMealCheckin",
+      payload: { patientId, checkinDate, mealKey, status },
+      timestamp,
+      retries: 0,
+    });
   });
 
-  // Enfileira a ação para sincronização em background
-  await db.syncQueue.add({
-    type: "meal_checkin",
-    action: "upsert",
-    endpoint: "recordMealCheckin",
-    payload: { patientId, checkinDate, mealKey, status },
-    timestamp,
-    retries: 0,
-  });
-
-  // Dispara evento para tentar sincronizar imediatamente se estiver online
-  if (navigator.onLine) {
-    triggerSyncBackground();
-  }
+  if (typeof navigator !== "undefined" && navigator.onLine) triggerSyncBackground();
 }
 
-/**
- * Dispara uma tentativa de sincronização em segundo plano via message ao Service Worker.
- */
 export function triggerSyncBackground() {
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({ type: "SYNC_QUEUE" });
   }
 }
