@@ -18,6 +18,7 @@ import { MealItemsList } from "@/components/diet/MealItemsList";
 import { MealCheckinButtons } from "./MealCheckinButtons";
 import { RecipeDisclosure } from "./RecipeDisclosure";
 import { PushOptIn } from "./PushOptIn";
+import { OfflineToast } from "./OfflineToast";
 
 const DAY_KEYS: (keyof NonNullable<Protocol["weekly_menu"]>)[] = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 
@@ -148,6 +149,8 @@ export function PatientOverview({
       </div>
 
       <ShareButtons patientName={patient.full_name} patientId={patient.id} clinicName={clinicName} />
+
+      <OfflineToast />
     </div>
   );
 }
