@@ -1105,6 +1105,67 @@
      Esta área só guarda o conteúdo antes de ser enviado. */
   .print-area{display:none;}
 </style>
+
+<style id="tema-cumads">
+/* =====================================================================
+   TEMA CUMAD'S GRILL — creme, vermelho-brasa e dourado, casando com o
+   cardápio impresso (faixas vermelhas pinceladas com estrela dourada).
+   ===================================================================== */
+:root{
+  --pitch:#f6ecd9; --char:#fffaf0; --cream:#2b1a12;
+  --ember:#b3191e; --ember-deep:#7a0f12; --tomato:#d0342c; --mustard:#c98a00; --green:#2e8b4e;
+  --line:rgba(43,26,18,0.12);
+  --red:#a3161a; --red-bright:#c1272d; --gold:#f2b705; --gold-deep:#d99a00; --paper:#f6ecd9; --ink:#2b1a12;
+  --brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 80' preserveAspectRatio='none'%3E%3Cpath fill='%23a3161a' d='M10 16 L34 9 L72 13 L118 6 L176 11 L236 5 L298 10 L352 6 L394 13 L386 25 L398 38 L389 52 L396 68 L356 75 L296 70 L236 77 L172 71 L112 76 L54 70 L8 75 L17 61 L3 47 L14 33 Z'/%3E%3Cpath fill='%23c1272d' opacity='.55' d='M24 22 L120 17 L250 19 L372 16 L366 30 L240 28 L110 31 L30 33 Z'/%3E%3Cpath fill='%237a0f12' opacity='.35' d='M30 58 L140 55 L270 60 L380 56 L376 66 L260 69 L130 66 L26 68 Z'/%3E%3C/svg%3E");
+}
+body{
+  background:
+    radial-gradient(1100px 520px at 100% -10%, rgba(242,183,5,0.12), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(163,22,26,0.07), transparent 60%),
+    var(--paper);
+  color:var(--ink);
+}
+.grain{opacity:0.07; mix-blend-mode:multiply;}
+::selection{background:var(--red); color:#fff6e6;}
+
+/* ---------- cabeçalho ---------- */
+header{background:var(--red); border-bottom:3px solid var(--gold);}
+header, header nav ul a{color:#fff6e6;}
+nav ul a:hover{color:var(--gold);}
+.brand-badge{box-shadow:0 0 0 2px var(--red), 0 0 0 4px var(--gold); background:#f6ecd9;}
+.brand-text .l1{font-family:'Lobster',cursive; font-size:25px; letter-spacing:0; color:#fff6e6; font-weight:400; line-height:1;}
+.brand-text .l2{font-family:'Montserrat',sans-serif; font-weight:800; font-size:10px; letter-spacing:3px; color:var(--gold); margin-top:2px;}
+.icon-link{color:#fff6e6; border-color:rgba(255,246,230,0.35);}
+.icon-link:hover{color:#fff; border-color:var(--gold);}
+.menu-toggle span{background:#fff6e6;}
+nav ul.nav-aberto{background:#fffaf0 !important; border:2px solid var(--gold) !important;}
+nav ul.nav-aberto a{color:var(--ink);}
+.divider{height:22px; background:none; opacity:1; position:relative;}
+.divider::before{content:""; position:absolute; left:0; right:0; top:50%; height:3px; background:var(--gold); border-radius:3px;}
+.divider::after{content:"★"; position:absolute; left:50%; top:50%; transform:translate(-50%,-52%); color:var(--red); background:var(--paper); padding:0 12px; font-size:20px; line-height:1;}
+
+/* ---------- painel ---------- */
+.panel{border:2px solid rgba(217,154,0,0.45);}
+#adminOverlay .panel > .panel-head{background:var(--red); border-bottom:3px solid var(--gold);}
+.panel-head h2{color:#fff6e6;}
+.panel-head .close-btn{color:#fff6e6;}
+.panel-logo img{box-shadow:0 0 0 2px var(--red), 0 0 0 4px var(--gold);}
+.pl-txt strong{font-family:'Lobster',cursive !important; font-weight:400; font-size:24px !important; color:#fff6e6 !important;}
+.pl-txt small{color:rgba(255,246,230,0.75) !important;}
+#adminOverlay .panel-head #whoAmI{color:rgba(255,246,230,0.8) !important;}
+#adminOverlay .panel-head button, #adminOverlay .panel-head a.tv-link{border-color:rgba(255,246,230,0.45); color:#fff6e6; background:rgba(255,246,230,0.08);}
+.btn-primary, .cta-btn{background:var(--red); color:#fff6e6; box-shadow:0 3px 0 var(--ember-deep);}
+.btn-primary:hover, .cta-btn:hover{background:var(--red-bright); color:#fff;}
+.grupo-btn{border:2px solid rgba(163,22,26,0.18); background:#fffaf0; color:var(--ink); font-weight:800;}
+.grupo-btn.active{background:var(--brush) center/100% 100% no-repeat; border-color:transparent; color:#fff6e6;}
+.admin-tab-btn{opacity:0.85;}
+.admin-tab-btn.active{background:var(--red); border-color:var(--red); color:#fff6e6;}
+.sub-tab-btn.active{background:var(--red); border-color:var(--red); color:#fff6e6;}
+.kpi-card{background:#fffaf0; border:2px solid rgba(217,154,0,0.3);}
+.kpi-card .kv{color:var(--red);}
+.tab.active{background:var(--red); border-color:var(--red); color:#fff6e6;}
+.price{color:var(--red);}
+</style>
 </head>
 <body>
 <div class="grain"></div>
@@ -1113,7 +1174,7 @@
   <div class="wrap nav">
     <a href="/" class="brand brand-link" title="Voltar para o site">
       <img src="mascot.jpg" alt="Logo Cumad's Grill" class="brand-badge">
-      <div class="brand-text"><div class="l1">CUMAD'S</div><div class="l2">Grill</div></div>
+      <div class="brand-text"><div class="l1">Cumad's</div><div class="l2">★ GRILL ★</div></div>
     </a>
     <nav>
       <ul>
@@ -1264,7 +1325,7 @@
   <div class="wrap">
     <div class="foot-grid">
       <div class="foot-brand">
-        <div class="brand"><img src="mascot.jpg" alt="Logo Cumad's Grill" class="brand-badge"><div class="brand-text"><div class="l1">CUMAD'S</div><div class="l2">Grill</div></div></div>
+        <div class="brand"><img src="mascot.jpg" alt="Logo Cumad's Grill" class="brand-badge"><div class="brand-text"><div class="l1">Cumad's</div><div class="l2">★ GRILL ★</div></div></div>
         <p>Espetinhos na brasa, jantinhas, porções, cremes e pastéis — feitos com carinho pelas comadres.</p>
       </div>
       <div class="foot-col"><h4>Navegação</h4><ul><li><a href="#cardapio">Cardápio</a></li><li><a href="#sobre">Sobre nós</a></li><li><a href="#local">Localização</a></li></ul></div>
@@ -1344,7 +1405,7 @@
       <a href="/" class="panel-logo" title="Voltar para o site">
         <img src="mascot.jpg" alt="Cumad's Grill">
         <div class="pl-txt">
-          <strong>Painel do Chef</strong>
+          <strong>Painel Cumad's</strong>
           <small>↩ voltar ao site</small>
         </div>
       </a>
@@ -2608,7 +2669,7 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js"
         onerror="document.getElementById('falhaConexao').style.display='flex'"></script>
-<script src="/supa-firebase.js?v=1"
+<script src="/supa-firebase.js?v=2"
         onerror="document.getElementById('falhaConexao').style.display='flex'"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

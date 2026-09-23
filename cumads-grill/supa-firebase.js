@@ -351,7 +351,7 @@
 
     registry.add(l);
     buscar();
-    poll = setInterval(buscar, POLL_COLS[ref._col] ? 5000 : 60000);
+    poll = setInterval(buscar, POLL_COLS[ref._col] ? 5000 : 30000);
     return parar;
   }
 
@@ -400,7 +400,7 @@
 
     registry.add(l);
     buscar();
-    poll = setInterval(buscar, 45000);
+    poll = setInterval(buscar, 15000);
     return parar;
   }
 
