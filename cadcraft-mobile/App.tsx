@@ -13,6 +13,7 @@ import {
   Drawing, Entity, Pt, Snap, dist, emptyDrawing, extents, findSnap, hitTest, parsePoint,
   toDXF, translate, uid, visible,
 } from './src/cad';
+import Part3D, { DRAWING_KEY } from './src/Part3D';
 
 type Tool = 'select' | 'line' | 'pline' | 'rect' | 'circle' | 'move' | 'erase' | 'dist' | 'text';
 
@@ -40,7 +41,7 @@ const PROMPTS: Record<Tool, (n: number) => string> = {
   text: (n) => (n ? 'Digite o texto e [Enter]' : 'Ponto de inserção'),
 };
 
-const STORAGE_KEY = 'cadcraft.drawing.v1';
+const STORAGE_KEY = DRAWING_KEY;
 const SNAP_PX = 18;
 
 function Editor() {
@@ -298,7 +299,7 @@ function Editor() {
   const exportDXF = async () => {
     try {
       const f = new File(Paths.cache, `desenho-${Date.now()}.dxf`);
-      f.write(toDXF(dwg));
+      await f.write(toDXF(dwg));
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(f.uri, { mimeType: 'application/dxf', dialogTitle: 'Exportar DXF' });
       else msg(`Salvo em ${f.uri}`);
     } catch (err) {
@@ -373,10 +374,8 @@ function Editor() {
   const snapMarker = snap && snap.kind !== 'grid' && toScreen(snap.p);
 
   return (
-    <SafeAreaView style={s.root} edges={['top', 'bottom']}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1 }}>
       <View style={s.topbar}>
-        <Text style={s.brand}>CADCraft</Text>
         <Btn label="↶" onPress={doUndo} />
         <Btn label="↷" onPress={doRedo} />
         <Btn label="Zoom" onPress={zoomExtents} />
@@ -470,7 +469,7 @@ function Editor() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -487,16 +486,32 @@ const Toggle = ({ label, on, onPress }: { label: string; on: boolean; onPress: (
 );
 
 export default function App() {
+  const [mode, setMode] = useState<'2d' | '3d'>('2d');
   return (
     <SafeAreaProvider>
-      <Editor />
+      <SafeAreaView style={s.root} edges={['top', 'bottom']}>
+        <StatusBar style="light" />
+        <View style={s.header}>
+          <Text style={s.brand}>CADCraft</Text>
+          {(['2d', '3d'] as const).map((m) => (
+            <Pressable key={m} onPress={() => setMode(m)} style={[s.mode, mode === m && s.toolOn]}>
+              <Text style={[s.toolText, mode === m && { color: '#0b1120' }]}>{m === '2d' ? 'Desenho 2D' : 'Peça 3D'}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {/* both stay mounted so switching modes keeps view state and the 3D engine warm */}
+        <View style={{ flex: 1, display: mode === '2d' ? 'flex' : 'none' }}><Editor /></View>
+        <View style={{ flex: 1, display: mode === '3d' ? 'flex' : 'none' }}><Part3D /></View>
+      </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#111827' },
-  topbar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, flexWrap: 'wrap' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 6 },
+  mode: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#1f2937' },
+  topbar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 6, flexWrap: 'wrap' },
   brand: { color: '#f9fafb', fontWeight: '800', fontSize: 16, marginRight: 'auto' },
   canvas: { flex: 1, overflow: 'hidden' },
   coords: { position: 'absolute', left: 8, top: 8, color: '#d1d5db', fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), fontSize: 12, backgroundColor: '#0b1120cc', padding: 4, borderRadius: 4 },

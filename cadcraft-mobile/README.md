@@ -11,6 +11,23 @@ App de CAD 2D estilo AutoCAD para iOS e Android (Expo / React Native), inspirado
 - Camadas com cor e visibilidade; desfazer/refazer; salvamento automático
 - Pan/zoom com dois dedos; exportar e compartilhar **DXF**
 
+## Peça 3D (modelagem paramétrica estilo Inventor)
+Aba **Peça 3D**: árvore de features recalculada a cada alteração, com parâmetros editáveis,
+suprimir/ativar, reordenar e excluir.
+- **Esboço**: importa as formas fechadas do desenho 2D para o plano XY, XZ ou YZ (com deslocamento);
+  perfis internos viram furos.
+- **Extrusão** (normal / invertida / simétrica) e **Revolução** (eixo X ou Y do esboço, ângulo).
+- **Primitivas**: caixa, cilindro, esfera. **Furo** por diâmetro/profundidade.
+- Operações booleanas **Unir / Cortar / Interseção** em cada feature.
+- **Padrão retangular**, **padrão circular** e **espelhar** de uma feature.
+- Vistas Iso/Topo/Frente/Direita, órbita/zoom por toque, volume, área e dimensões totais.
+- Exporta **STL** (impressão 3D / outros CADs).
+
+Motor: [Manifold](https://github.com/elalish/manifold) (booleanas robustas, WASM) + three.js,
+empacotados offline em `src/engine3d.generated.ts`. Ao alterar `web3d/engine.ts`, rode `npm run build:3d`.
+
+Ainda não tem: filete/chanfro, casca, restrições no esboço, montagens, desenho 2D a partir do 3D, STEP.
+
 ## Rodar
 ```bash
 npm install
