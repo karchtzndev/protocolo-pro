@@ -1,41 +1,54 @@
 # CADCraft Mobile
 
-App de CAD 2D estilo AutoCAD para iOS e Android (Expo / React Native), inspirado no
-[CADCraft](https://github.com/storytold/cadcraft).
+CAD para iOS e Android (Expo / React Native): desenho 2D estilo AutoCAD + modelagem 3D
+paramétrica, montagens e desenho técnico estilo Inventor. Funciona offline.
 
-## Recursos
-- Linha, polilinha, retângulo, círculo, texto, mover, apagar, medir distância
-- Linha de comando AutoCAD: `L`, `PL`, `REC`, `C`, `M`, `E`, `DI`, `T`, `U`, `REDO`, `Z`
-- Coordenadas: `10,20` (absoluta), `@5,0` (relativa), `@10<45` (polar), `25` (distância na direção do cursor)
-- OSNAP (extremidade, ponto médio, centro, quadrante), grade com snap, ORTHO
-- Camadas com cor e visibilidade; desfazer/refazer; salvamento automático
-- Pan/zoom com dois dedos; exportar e compartilhar **DXF**
+## Abas
+**2D** — linha, polilinha, retângulo, círculo, arco, texto, mover, apagar, medir; linha de comando
+(`L`, `PL`, `REC`, `C`, `A`, `D`, `R`, `M`, `E`, `DI`, `T`, `U`, `Z`), coordenadas `10,20` `@5,0` `@10<45`,
+OSNAP, grade, ORTHO, camadas, desfazer/refazer, exportar DXF.
+- **Restrições**: horizontal, vertical, coincidente, paralela, perpendicular, igual, tangente,
+  concêntrica, fixar — com solver (Levenberg–Marquardt) e contagem de graus de liberdade.
+- **Cotas paramétricas**: comprimento, distância entre pontos, raio/diâmetro, ângulo. Mudar o valor
+  redimensiona a geometria. Restrições automáticas ao desenhar (retângulo H/V, pontas encadeadas).
+- Linhas de construção (ignoradas nos perfis).
 
-## Peça 3D (modelagem paramétrica estilo Inventor)
-Aba **Peça 3D**: árvore de features recalculada a cada alteração, com parâmetros editáveis,
-suprimir/ativar, reordenar e excluir.
-- **Esboço**: importa as formas fechadas do desenho 2D para o plano XY, XZ ou YZ (com deslocamento);
-  perfis internos viram furos.
-- **Extrusão** (normal / invertida / simétrica) e **Revolução** (eixo X ou Y do esboço, ângulo).
-- **Primitivas**: caixa, cilindro, esfera. **Furo** por diâmetro/profundidade.
-- Operações booleanas **Unir / Cortar / Interseção** em cada feature.
-- **Padrão retangular**, **padrão circular** e **espelhar** de uma feature.
-- Vistas Iso/Topo/Frente/Direita, órbita/zoom por toque, volume, área e dimensões totais.
-- Exporta **STL** (impressão 3D / outros CADs).
+**Peça** — navegador do modelo com esboços (editados no 2D, planos XY/XZ/YZ com deslocamento) e
+árvore de features paramétricas (editar, suprimir, reordenar):
+extrusão, revolução, loft, caixa, cilindro, cone, esfera, furo (com rebaixo), **filete**, **chanfro**
+(arestas tocadas no modelo ou por regra: todas/topo/base/verticais/circulares), **casca** (faces tocadas),
+padrão retangular/circular, espelhar, unir/cortar/interseção, **importar STEP**.
+Material e cor por peça, massa, volume, área. Exporta **STEP** e **STL**. Várias peças por projeto.
 
-Motor: [Manifold](https://github.com/elalish/manifold) (booleanas robustas, WASM) + three.js,
-empacotados offline em `src/engine3d.generated.ts`. Ao alterar `web3d/engine.ts`, rode `npm run build:3d`.
+**Montagem** — insere peças como componentes, fixa (⚓), posiciona/rotaciona, restrições tocando nas
+faces: face com face, faces niveladas, eixos coincidentes, ponto com ponto (com afastamento).
+Detecção de interferências, lista de peças com massa, exporta STEP (com nomes e cores) e STL.
 
-Ainda não tem: filete/chanfro, casca, restrições no esboço, montagens, desenho 2D a partir do 3D, STEP.
+**Folha** — desenho técnico em A4/A3 (1º diedro/ABNT): vistas frontal, superior, lateral e
+isométrica com linhas ocultas, cotas gerais, escala automática e legenda. Exporta PDF, DXF, SVG ou
+abre as vistas no 2D.
+
+## Arquitetura
+- `src/cad.ts` — modelo 2D, snaps, solver de restrições, perfis fechados, DXF.
+- `src/part.ts` — modelo de peças/montagens e mensagens do motor.
+- `web3d/engine.ts` — motor 3D: [OpenCascade](https://dev.opencascade.org/) via
+  [replicad](https://replicad.xyz) (B-rep: booleanas, filetes, casca, STEP, projeções HLR) + three.js.
+  Roda num WebView (iframe na web); `scripts/build-3d.mjs` gera `assets/engine/` (roda no `npm install`).
+- `src/engine.tsx` — ponte com o WebView, compartilhado por todas as telas 3D.
+- `src/store.tsx` — projeto salvo em `workspace.json` (documentos do app).
+
+O OpenCascade é LGPL-2.1: o `.wasm` é distribuído como arquivo separado e não modificado
+(`assets/engine/occt.wasm`), o que permite substituí-lo. Inclua a menção à licença na tela "Sobre"/loja.
 
 ## Rodar
 ```bash
-npm install
-npx expo start      # abra no Expo Go (celular) ou emulador
+npm install          # também gera o motor 3D
+npx expo start       # Expo Go, emulador, ou "w" para web
 ```
+Teste do motor (opcional): `npm i -D playwright && npx tsx scripts/engine-test.ts`.
 
 ## Publicar nas lojas
-1. Troque `com.seuapp.cadcraft` em `app.json` pelo seu identificador; troque os ícones em `assets/`.
+1. Troque `com.seuapp.cadcraft` em `app.json` pelo seu identificador e os ícones em `assets/`.
 2. `npm i -g eas-cli && eas login && eas init`
 3. `eas build -p android --profile production` e `eas build -p ios --profile production`
-4. `eas submit -p android` (conta Google Play, US$ 25) e `eas submit -p ios` (Apple Developer, US$ 99/ano)
+4. `eas submit -p android` (Google Play, US$ 25) e `eas submit -p ios` (Apple Developer, US$ 99/ano)
