@@ -37,7 +37,8 @@ export const toEnginePart = (p: PartDoc): EnginePart => ({
 async function prepareEngine(): Promise<string> {
   if (Platform.OS === 'web') {
     const [html, wasm] = [Asset.fromModule(require('../assets/engine/engine.html')), Asset.fromModule(require('../assets/engine/occt.wasm'))];
-    return `${html.uri}${html.uri.includes('?') ? '&' : '?'}wasm=${encodeURIComponent(wasm.uri)}`;
+    const abs = (u: string) => new URL(u, window.location.href).href;
+    return `${abs(html.uri)}${html.uri.includes('?') ? '&' : '?'}wasm=${encodeURIComponent(abs(wasm.uri))}`;
   }
   const dir = new Directory(Paths.document, 'engine');
   if (!dir.exists) dir.create({ intermediates: true });

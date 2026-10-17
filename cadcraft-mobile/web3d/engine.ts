@@ -780,7 +780,21 @@ function loadWasm(): Promise<ArrayBuffer> {
   });
 }
 
-loadWasm()
+// The wasm URL may point at a small JSON manifest listing chunk files (used where hosts cap file size).
+async function loadEngineBinary(): Promise<ArrayBuffer> {
+  const buf = await loadWasm();
+  const head = new Uint8Array(buf, 0, Math.min(1, buf.byteLength));
+  if (head[0] !== 0x7b) return buf; // not '{'
+  const base = new URL(new URLSearchParams(location.search).get('wasm') ?? 'occt.wasm', location.href);
+  const { parts } = JSON.parse(new TextDecoder().decode(buf)) as { parts: string[] };
+  const chunks = await Promise.all(parts.map((p) => fetch(new URL(p, base)).then((r) => r.arrayBuffer())));
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0));
+  let o = 0;
+  for (const c of chunks) { out.set(new Uint8Array(c), o); o += c.byteLength; }
+  return out.buffer;
+}
+
+loadEngineBinary()
   .then((wasmBinary) => (opencascade as any)({ wasmBinary }))
   .then((instance: any) => {
     R.setOC(instance);
