@@ -40,7 +40,7 @@ scene.add(grid, new THREE.AxesHelper(30));
 
 const edgeMat = new THREE.LineBasicMaterial({ color: '#0f172a' });
 const hiEdgeMat = new THREE.LineBasicMaterial({ color: '#f97316', linewidth: 3, depthTest: false });
-const toolMat = new THREE.MeshBasicMaterial({ color: '#22d3ee', wireframe: true, transparent: true, opacity: 0.3 });
+const toolMat = new THREE.MeshBasicMaterial({ color: '#22d3ee', transparent: true, opacity: 0.18, depthWrite: false });
 const sketchMat = new THREE.LineBasicMaterial({ color: '#facc15' });
 const hiFaceMat = new THREE.MeshBasicMaterial({ color: '#f97316', transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthTest: false });
 const content = new THREE.Group();

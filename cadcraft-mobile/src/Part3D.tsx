@@ -13,13 +13,8 @@ import {
 } from './part';
 import { updatePart, useWorkspace } from './store';
 import { Btn, C, Choice, NumField, Sheet, TextField, fmt, u } from './ui';
-
-const ADD: { group: string; types: FeatureType[] }[] = [
-  { group: 'Esboço', types: ['extrude', 'revolve', 'loft'] },
-  { group: 'Primitivas', types: ['box', 'cylinder', 'cone', 'sphere'] },
-  { group: 'Modificar', types: ['hole', 'fillet', 'chamfer', 'shell'] },
-  { group: 'Padrão', types: ['rectPattern', 'circPattern', 'mirror'] },
-];
+import { Icon, IconName } from './icons';
+import { Ribbon, RibbonTab } from './Ribbon';
 
 const COLORS = ['#94a3b8', '#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#e5e7eb', '#78716c'];
 
@@ -32,17 +27,25 @@ export const downloadBase64 = async (base64: string, name: string, mime: string)
 
 type Result = Extract<FromEngine, { type: 'partResult' }>;
 
-export default function Part3D({ onEditSketch }: { onEditSketch: (partId: string, sketchId: string) => void }) {
+type AutoFeature = { sketch: string; type: FeatureType } | null;
+
+const SKETCH_TYPES: FeatureType[] = ['extrude', 'revolve', 'loft'];
+
+export default function Part3D({ onEditSketch, autoFeature, onAutoDone }: {
+  onEditSketch: (partId: string, sketchId: string, then?: FeatureType) => void;
+  autoFeature?: AutoFeature; onAutoDone?: () => void;
+}) {
   const { ws, update, saveStep } = useWorkspace();
   const engine = useEngine();
   const part = ws.parts.find((p) => p.id === ws.activePart) ?? ws.parts[0];
   const [selected, setSelected] = useState<string | null>(null);
+  const [isNew, setIsNew] = useState(false);
   const [picking, setPicking] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const [sketchOpen, setSketchOpen] = useState(false);
+  const [sketchFor, setSketchFor] = useState<FeatureType | null | undefined>(undefined); // undefined = closed
   const [partsOpen, setPartsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const setPart = (fn: (p: PartDoc) => PartDoc) => update((w) => updatePart(w, part.id, fn));
   const sel = part.features.find((f) => f.id === selected) ?? null;
@@ -50,6 +53,8 @@ export default function Part3D({ onEditSketch }: { onEditSketch: (partId: string
     ? (sel.type === 'shell' ? 'face' : (sel.type === 'fillet' || sel.type === 'chamfer') && sel.edges.mode === 'picked' ? 'edge' : null) : null;
   const highlight: V3[] = sel?.type === 'fillet' || sel?.type === 'chamfer' ? (sel.edges.mode === 'picked' ? sel.edges.points : []) : sel?.type === 'shell' ? sel.faces : [];
   const enginePart = useMemo(() => toEnginePart(part), [part]);
+  const consumed = useMemo(() => new Set(part.features.flatMap((f) => ('sketch' in f ? [f.sketch] : 'sketches' in f ? f.sketches : []))), [part]);
+  const freeSketches = part.sketches.filter((s) => !consumed.has(s.id));
 
   useEffect(() => {
     engine.send({ type: 'part', part: enginePart, selected, rollback: pickKind ? selected : null, pick: pickKind, highlight });
@@ -61,6 +66,13 @@ export default function Part3D({ onEditSketch }: { onEditSketch: (partId: string
   }), [sel, picking]);
 
   useEffect(() => { setSelected(null); setPicking(false); }, [part.id]);
+
+  // Like Inventor: finishing a new sketch opens the Extrude dialog with that profile.
+  useEffect(() => {
+    if (!autoFeature) return;
+    if (part.sketches.some((s) => s.id === autoFeature.sketch) && !consumed.has(autoFeature.sketch)) createFeature(autoFeature.type, autoFeature.sketch);
+    onAutoDone?.();
+  }, [autoFeature]);
 
   const updateFeature = (id: string, patch: Partial<Feature>) =>
     setPart((p) => ({ ...p, features: p.features.map((f) => (f.id === id ? ({ ...f, ...patch } as Feature) : f)) }));
@@ -76,15 +88,31 @@ export default function Part3D({ onEditSketch }: { onEditSketch: (partId: string
     if (sel.type === 'shell') updateFeature(sel.id, { faces: toggle(sel.faces) } as any);
   };
 
-  const addFeature = (type: FeatureType) => {
-    if (['extrude', 'revolve', 'loft'].includes(type) && !part.sketches.length)
-      return Alert.alert('Sem esboço', 'Crie um esboço primeiro (botão "+ Esboço").');
-    if (type === 'loft' && part.sketches.length < 2) return Alert.alert('Loft', 'O loft precisa de pelo menos 2 esboços em planos/deslocamentos diferentes.');
-    const f = defaults(type, part, uid());
+  const createFeature = (type: FeatureType, sketch?: string) => {
+    let f = defaults(type, part, uid());
+    if (sketch && 'sketch' in f) f = { ...f, sketch } as Feature;
+    if (type === 'loft') f = { ...f, sketches: freeSketches.slice(-2).map((s) => s.id) } as Feature;
     setPart((p) => ({ ...p, features: [...p.features, f] }));
     setSelected(f.id);
+    setIsNew(true);
     setPicking(type === 'fillet' || type === 'chamfer' || type === 'shell');
-    setAddOpen(false);
+  };
+
+  // Ribbon command: sketch features need an unused sketch; otherwise start one first.
+  const command = (type: FeatureType) => {
+    if (SKETCH_TYPES.includes(type)) {
+      if (type === 'loft' && freeSketches.length < 2) return Alert.alert('Loft', 'O loft precisa de 2 esboços não usados, em planos ou deslocamentos diferentes. Crie-os com "Iniciar esboço 2D".');
+      if (!freeSketches.length) return setSketchFor(type);
+      return createFeature(type, freeSketches[freeSketches.length - 1].id);
+    }
+    if (['fillet', 'chamfer', 'shell', 'rectPattern', 'circPattern', 'mirror', 'hole'].includes(type) && !result?.bbox)
+      return Alert.alert(FEATURE_LABEL[type], 'Crie um sólido primeiro (por exemplo: Iniciar esboço 2D → Extrusão).');
+    createFeature(type);
+  };
+
+  const closeDialog = (ok: boolean) => {
+    if (!ok && isNew && sel) setPart((p) => ({ ...p, features: p.features.filter((f) => f.id !== sel.id) }));
+    setSelected(null); setPicking(false); setIsNew(false);
   };
 
   const remove = (id: string) => {
@@ -105,8 +133,9 @@ export default function Part3D({ onEditSketch }: { onEditSketch: (partId: string
     const sk = newSketch(uid(), part.sketches.length + 1, plane, offset);
     if (from2d) sk.drawing = { ...ws.drawing, constraints: ws.drawing.constraints ?? [] };
     setPart((p) => ({ ...p, sketches: [...p.sketches, sk] }));
-    setSketchOpen(false);
-    onEditSketch(part.id, sk.id);
+    const then = sketchFor ?? 'extrude';
+    setSketchFor(undefined);
+    onEditSketch(part.id, sk.id, then);
   };
 
   const importStep = async () => {
@@ -130,74 +159,108 @@ export default function Part3D({ onEditSketch }: { onEditSketch: (partId: string
   };
 
   const mass = result ? (result.volume / 1000) * part.material.density : 0;
+  const view = (name: 'iso' | 'top' | 'front' | 'right' | 'fit') => () => engine.send({ type: 'view', name });
+  const B = (icon: IconName, label: string, type: FeatureType, big = false) => ({ icon, label, big, onPress: () => command(type) });
+
+  const tabs: RibbonTab[] = [
+    { id: 'model', label: 'Modelo 3D', panels: [
+      { title: 'ESBOÇO', buttons: [{ icon: 'sketch', label: 'Iniciar esboço 2D', big: true, onPress: () => setSketchFor(null) }] },
+      { title: 'CRIAR', buttons: [B('extrude', 'Extrusão', 'extrude', true), B('revolve', 'Revolução', 'revolve'), B('loft', 'Loft', 'loft'), B('hole', 'Furo', 'hole')] },
+      { title: 'MODIFICAR', buttons: [B('fillet', 'Filete', 'fillet'), B('chamfer', 'Chanfro', 'chamfer'), B('shell', 'Casca', 'shell')] },
+      { title: 'PADRÃO', buttons: [B('rectPattern', 'Retangular', 'rectPattern'), B('circPattern', 'Circular', 'circPattern'), B('mirror', 'Espelhar', 'mirror')] },
+      { title: 'PRIMITIVAS', buttons: [B('box', 'Caixa', 'box'), B('cylinder', 'Cilindro', 'cylinder'), B('cone', 'Cone', 'cone'), B('sphere', 'Esfera', 'sphere')] },
+    ] },
+    { id: 'view', label: 'Vista', panels: [
+      { title: 'ORIENTAÇÃO', buttons: [
+        { icon: 'iso', label: 'Isométrica', onPress: view('iso') }, { icon: 'top', label: 'Superior', onPress: view('top') },
+        { icon: 'front', label: 'Frontal', onPress: view('front') }, { icon: 'right', label: 'Direita', onPress: view('right') },
+        { icon: 'fit', label: 'Ajustar', onPress: view('fit') }] },
+    ] },
+    { id: 'inspect', label: 'Inspecionar', panels: [
+      { title: 'MEDIR', buttons: [{ icon: 'props', label: 'Propriedades físicas', big: true, onPress: () => setInfoOpen(true) }] },
+    ] },
+    { id: 'manage', label: 'Gerenciar', panels: [
+      { title: 'PEÇA', buttons: [{ icon: 'part', label: 'Peças e material', onPress: () => setPartsOpen(true) }] },
+      { title: 'ARQUIVO', buttons: [{ icon: 'import', label: 'Importar STEP', onPress: importStep }, { icon: 'export', label: 'Exportar', onPress: () => setExportOpen(true) }] },
+    ] },
+  ];
+
+  // Inventor-like browser: sketches nest under the feature that consumes them.
+  const featureRow = (f: Feature) => {
+    const own = part.sketches.filter((s) => ('sketch' in f && f.sketch === s.id) || ('sketches' in f && f.sketches.includes(s.id)));
+    return (
+      <View key={f.id}>
+        <Pressable style={[u.treeRow, selected === f.id && u.treeRowOn]} onPress={() => { setSelected(selected === f.id ? null : f.id); setIsNew(false); setPicking(false); }}>
+          <Icon name={ICON[f.type]} size={18} color={result?.errors[f.id] ? C.err : '#cbd5e1'} />
+          <Text style={[{ color: '#e5e7eb', fontSize: 14 }, f.suppressed && { opacity: 0.4, textDecorationLine: 'line-through' }]}>{f.name}</Text>
+          {result?.errors[f.id] && <Text style={u.err} numberOfLines={1}>⚠ {result.errors[f.id]}</Text>}
+        </Pressable>
+        {own.map((sk) => sketchRow(sk, true))}
+      </View>
+    );
+  };
+  const sketchRow = (sk: PartDoc['sketches'][number], nested = false) => (
+    <View key={sk.id} style={[u.treeRow, nested && { paddingLeft: 30, paddingVertical: 3 }]}>
+      <Icon name="sketch" size={16} color={C.warn} />
+      <Text style={{ color: C.warn, fontSize: 13, flex: 1 }} numberOfLines={1}>{sk.name} <Text style={{ color: C.dim }}>({sk.plane}{sk.offset ? ` ${sk.offset > 0 ? '+' : ''}${sk.offset}` : ''})</Text></Text>
+      <Btn small label="Editar" onPress={() => onEditSketch(part.id, sk.id)} />
+      {!nested && <Btn small danger label="✕" onPress={() => setPart((p) => ({ ...p, sketches: p.sketches.filter((x) => x.id !== sk.id) }))} />}
+    </View>
+  );
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={u.bar}>
-        <Btn small on label={`▾ ${part.name}`} onPress={() => setPartsOpen(true)} />
-        {(['iso', 'top', 'front', 'right', 'fit'] as const).map((v) => (
-          <Btn key={v} small label={{ iso: 'Iso', top: 'Topo', front: 'Frente', right: 'Direita', fit: 'Ajustar' }[v]} onPress={() => engine.send({ type: 'view', name: v })} />
-        ))}
-        <Btn small label="Exportar" onPress={() => setExportOpen(true)} />
-        <Btn small label="STEP ⇩" onPress={importStep} />
-      </View>
+      <Ribbon tabs={tabs} />
 
       <Viewport />
 
       <View style={u.panel}>
-        <Text style={{ color: C.dim, fontSize: 11 }}>
-          {result?.bbox
-            ? `${part.material.name} · ${fmt(mass, 1)} g · Vol ${fmt(result.volume / 1000, 2)} cm³ · ${result.bbox.map((v) => fmt(v, 1)).join('×')} mm`
-            : 'Sem sólido'}
-          {pickKind ? `   ◉ Toque ${pickKind === 'edge' ? 'nas arestas' : 'nas faces'} no modelo` : ''}
-        </Text>
-        <View style={u.row}>
-          <Text style={u.title}>Navegador do modelo</Text>
-          <Btn small label="+ Esboço" onPress={() => setSketchOpen(true)} />
-          <Btn small label="+ Feature" onPress={() => setAddOpen(true)} />
-        </View>
-        <ScrollView style={{ maxHeight: sel ? 96 : 170 }}>
-          {part.sketches.map((sk) => (
-            <View key={sk.id} style={u.treeRow}>
-              <Text style={{ color: C.warn, fontSize: 13, flex: 1 }} numberOfLines={1}>✎ {sk.name} · {sk.plane}{sk.offset ? ` ${sk.offset > 0 ? '+' : ''}${sk.offset}` : ''}</Text>
-              <Btn small label="Editar" onPress={() => onEditSketch(part.id, sk.id)} />
-              <Btn small danger label="✕" onPress={() => Alert.alert('Excluir esboço', `Excluir ${sk.name}?`, [{ text: 'Cancelar' }, { text: 'Excluir', style: 'destructive', onPress: () => setPart((p) => ({ ...p, sketches: p.sketches.filter((x) => x.id !== sk.id) })) }])} />
-            </View>
-          ))}
-          {part.features.map((f) => (
-            <Pressable key={f.id} style={[u.treeRow, selected === f.id && u.treeRowOn]} onPress={() => { setSelected(selected === f.id ? null : f.id); setPicking(false); }}>
-              <Text style={[{ color: '#e5e7eb', fontSize: 14 }, f.suppressed && { opacity: 0.4, textDecorationLine: 'line-through' }]}>
-                {result?.errors[f.id] ? '⚠ ' : '■ '}{f.name}
+        {sel ? (
+          <FeatureDialog f={sel} part={part} update={updateFeature} remove={remove} move={move} isNew={isNew}
+            picking={picking} setPicking={setPicking} error={result?.errors[sel.id]} onClose={closeDialog} />
+        ) : (
+          <>
+            <View style={u.row}>
+              <Text style={u.title}>Modelo</Text>
+              <Text style={{ color: C.dim, fontSize: 11 }}>
+                {result?.bbox ? `${fmt(mass, 1)} g · ${result.bbox.map((v) => fmt(v, 1)).join('×')} mm` : 'Sem sólido'}
               </Text>
-              {result?.errors[f.id] && <Text style={u.err} numberOfLines={1}>{result.errors[f.id]}</Text>}
-            </Pressable>
-          ))}
-          {!part.features.length && !part.sketches.length && (
-            <Text style={u.hint}>1) + Esboço → desenhe e cote o perfil → Concluir  2) + Feature → Extrusão. Ou comece com uma primitiva.</Text>
-          )}
-        </ScrollView>
-        {sel && (
-          <Props f={sel} part={part} update={updateFeature} remove={remove} move={move}
-            picking={picking} setPicking={setPicking} error={result?.errors[sel.id]} />
+            </View>
+            <ScrollView style={{ maxHeight: 200 }}>
+              <Pressable style={u.treeRow} onPress={() => setPartsOpen(true)}>
+                <Icon name="part" size={18} color={C.accent} />
+                <Text style={{ color: C.text, fontWeight: '700' }}>{part.name}</Text>
+                <Text style={u.hint}>{part.material.name}</Text>
+              </Pressable>
+              <Text style={[u.hint, { paddingLeft: 30 }]}>▸ Origem (XY · XZ · YZ)</Text>
+              {part.features.map(featureRow)}
+              {freeSketches.map((sk) => sketchRow(sk))}
+              <Text style={[u.hint, { paddingLeft: 30, color: C.err }]}>■ Fim da peça</Text>
+              {!part.features.length && !part.sketches.length && (
+                <Text style={u.hint}>Comece por Modelo 3D › Iniciar esboço 2D (ou direto em Extrusão): escolha o plano, desenhe e cote o perfil, toque em "Concluir esboço" e ajuste a distância da extrusão.</Text>
+              )}
+            </ScrollView>
+          </>
         )}
       </View>
 
-      <Sheet open={addOpen} title="Nova feature" onClose={() => setAddOpen(false)}>
-        {ADD.map((g) => (
-          <View key={g.group}>
-            <Text style={{ color: C.dim, fontSize: 12, marginBottom: 4 }}>{g.group}</Text>
-            <View style={u.wrap}>{g.types.map((t) => <Btn key={t} label={FEATURE_LABEL[t]} onPress={() => addFeature(t)} />)}</View>
-          </View>
-        ))}
-        <Text style={{ color: C.dim, fontSize: 12 }}>Importar</Text>
-        <Btn label="Arquivo STEP (.step/.stp)" onPress={() => { setAddOpen(false); importStep(); }} />
-      </Sheet>
-
-      <SketchSheet open={sketchOpen} onClose={() => setSketchOpen(false)} onCreate={createSketch} has2d={ws.drawing.entities.length > 0} />
+      <SketchSheet open={sketchFor !== undefined} forFeature={sketchFor ?? null} onClose={() => setSketchFor(undefined)} onCreate={createSketch} has2d={ws.drawing.entities.length > 0} />
 
       <Sheet open={exportOpen} title="Exportar peça" onClose={() => setExportOpen(false)}>
         <Btn label="STEP (CAD: Inventor, SolidWorks, Fusion…)" onPress={() => doExport('step')} />
         <Btn label="STL (impressão 3D)" onPress={() => doExport('stl')} />
+      </Sheet>
+
+      <Sheet open={infoOpen} title={`Propriedades físicas — ${part.name}`} onClose={() => setInfoOpen(false)}>
+        {[
+          ['Material', `${part.material.name} (${part.material.density} g/cm³)`],
+          ['Massa', `${fmt(mass, 2)} g`],
+          ['Volume', `${fmt((result?.volume ?? 0) / 1000, 3)} cm³`],
+          ['Área de superfície', `${fmt(result?.area ?? 0, 1)} mm²`],
+          ['Caixa envolvente', result?.bbox ? `${result.bbox.map((v) => fmt(v, 2)).join(' × ')} mm` : '—'],
+        ].map(([k, v]) => (
+          <View key={k} style={u.field}><Text style={[u.label, { width: 140 }]}>{k}</Text><Text style={{ color: C.text }}>{v}</Text></View>
+        ))}
       </Sheet>
 
       <PartsSheet open={partsOpen} onClose={() => setPartsOpen(false)} />
@@ -205,22 +268,45 @@ export default function Part3D({ onEditSketch }: { onEditSketch: (partId: string
   );
 }
 
-function Props({ f, part, update, remove, move, picking, setPicking, error }: {
+const ICON: Record<FeatureType, IconName> = {
+  extrude: 'extrude', revolve: 'revolve', loft: 'loft', box: 'box', cylinder: 'cylinder', cone: 'cone', sphere: 'sphere',
+  hole: 'hole', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', rectPattern: 'rectPattern', circPattern: 'circPattern',
+  mirror: 'mirror', import: 'import',
+};
+
+function FeatureDialog({ f, part, update, remove, move, picking, setPicking, error, onClose, isNew }: {
   f: Feature; part: PartDoc; update: (id: string, p: Partial<Feature>) => void; remove: (id: string) => void;
   move: (id: string, d: -1 | 1) => void; picking: boolean; setPicking: (b: boolean) => void; error?: string;
+  onClose: (ok: boolean) => void; isNew: boolean;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={[u.row, { backgroundColor: '#1e3a5f', marginHorizontal: -8, marginTop: -8, padding: 8 }]}>
+        <Icon name={ICON[f.type]} size={22} color={C.accent} />
+        <Text style={{ color: C.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>{FEATURE_LABEL[f.type]} : {f.name}</Text>
+        <Btn small on label="OK" onPress={() => onClose(true)} />
+        <Btn small label="Cancelar" onPress={() => onClose(false)} />
+      </View>
+      <Props f={f} part={part} update={update} remove={remove} move={move} picking={picking} setPicking={setPicking} error={error} isNew={isNew} />
+    </View>
+  );
+}
+
+function Props({ f, part, update, remove, move, picking, setPicking, error, isNew }: {
+  f: Feature; part: PartDoc; update: (id: string, p: Partial<Feature>) => void; remove: (id: string) => void;
+  move: (id: string, d: -1 | 1) => void; picking: boolean; setPicking: (b: boolean) => void; error?: string; isNew?: boolean;
 }) {
   const refOptions = part.features.filter((x) => x.id !== f.id && !['rectPattern', 'circPattern', 'mirror', 'fillet', 'chamfer', 'shell'].includes(x.type));
   const sketches = part.sketches.map((k) => [k.id, k.name] as [string, string]);
   return (
-    <ScrollView style={{ maxHeight: 230, borderTopWidth: 1, borderTopColor: C.panel, paddingTop: 6 }} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
-      <View style={u.wrap}>
-        <Text style={{ color: C.accent, fontWeight: '700' }}>{FEATURE_LABEL[f.type]}</Text>
+    <ScrollView style={{ maxHeight: 230 }} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
+      {!isNew && <View style={u.wrap}>
         <Btn small label="↑" onPress={() => move(f.id, -1)} />
         <Btn small label="↓" onPress={() => move(f.id, 1)} />
         <Btn small label={f.suppressed ? 'Ativar' : 'Suprimir'} onPress={() => update(f.id, { suppressed: !f.suppressed })} />
         <Btn small danger label="Excluir" onPress={() => remove(f.id)} />
-      </View>
-      {error && <Text style={u.err}>{error}</Text>}
+      </View>}
+      {error && <Text style={u.err}>⚠ {error}</Text>}
       <TextField label="Nome" value={f.name} onChange={(name) => update(f.id, { name })} />
       {'sketch' in f && <Choice label="Esboço" value={f.sketch} options={sketches} onChange={(v) => update(f.id, { sketch: v } as any)} />}
       {f.type === 'loft' && <Choice multi label="Esboços (ordem)" value={f.sketches} options={sketches} onChange={(v) => update(f.id, { sketches: v } as any)} />}
@@ -256,12 +342,12 @@ function Props({ f, part, update, remove, move, picking, setPicking, error }: {
   );
 }
 
-function SketchSheet({ open, onClose, onCreate, has2d }: { open: boolean; onClose: () => void; onCreate: (p: Plane, o: number, from2d: boolean) => void; has2d: boolean }) {
+function SketchSheet({ open, onClose, onCreate, has2d, forFeature }: { open: boolean; onClose: () => void; onCreate: (p: Plane, o: number, from2d: boolean) => void; has2d: boolean; forFeature: FeatureType | null }) {
   const [plane, setPlane] = useState<Plane>('XY');
   const [offset, setOffset] = useState(0);
   return (
-    <Sheet open={open} title="Novo esboço" onClose={onClose}>
-      <Text style={u.hint}>O esboço abre no editor 2D com cotas e restrições. Formas fechadas viram perfis; formas internas viram furos. Linhas de construção são ignoradas.</Text>
+    <Sheet open={open} title={forFeature ? `${FEATURE_LABEL[forFeature]}: escolha o plano do esboço` : 'Iniciar esboço 2D'} onClose={onClose}>
+      <Text style={u.hint}>Depois de desenhar, toque em "✓ Concluir esboço" e a {forFeature ? FEATURE_LABEL[forFeature] : 'Extrusão'} abre com esse perfil. O esboço abre no editor 2D com cotas e restrições. Formas fechadas viram perfis; formas internas viram furos. Linhas de construção são ignoradas.</Text>
       <Choice label="Plano" value={plane} options={[['XY', 'XY (topo)'], ['XZ', 'XZ (frente)'], ['YZ', 'YZ (lateral)']]} onChange={(v) => setPlane(v as Plane)} />
       <NumField label="Deslocamento" value={offset} onChange={setOffset} />
       <Btn on label="Criar esboço vazio" onPress={() => onCreate(plane, offset, false)} />

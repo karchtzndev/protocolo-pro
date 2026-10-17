@@ -9,6 +9,7 @@ import DrawingSheet from './src/DrawingSheet';
 import { EngineProvider } from './src/engine';
 import { WorkspaceProvider, updatePart, useWorkspace } from './src/store';
 import { C } from './src/ui';
+import { FeatureType } from './src/part';
 
 type Tab = '2d' | 'part' | 'asm' | 'sheet';
 const TABS: [Tab, string][] = [['2d', '2D'], ['part', 'Peça'], ['asm', 'Montagem'], ['sheet', 'Folha']];
@@ -16,7 +17,8 @@ const TABS: [Tab, string][] = [['2d', '2D'], ['part', 'Peça'], ['asm', 'Montage
 function Shell() {
   const { ws, update } = useWorkspace();
   const [tab, setTab] = useState<Tab>('2d');
-  const [editing, setEditing] = useState<{ part: string; sketch: string } | null>(null);
+  const [editing, setEditing] = useState<{ part: string; sketch: string; then?: FeatureType } | null>(null);
+  const [autoFeature, setAutoFeature] = useState<{ sketch: string; type: FeatureType } | null>(null);
 
   const part = editing && ws.parts.find((p) => p.id === editing.part);
   const sketch = part?.sketches.find((s) => s.id === editing!.sketch);
@@ -38,12 +40,15 @@ function Shell() {
           title={`${part.name} › ${sketch.name} (${sketch.plane})`}
           drawing={sketch.drawing}
           onChange={(drawing) => update((w) => updatePart(w, part.id, (p) => ({ ...p, sketches: p.sketches.map((k) => (k.id === sketch.id ? { ...k, drawing } : k)) })))}
-          onDone={() => { setEditing(null); setTab('part'); }}
+          onDone={() => {
+            if (editing?.then) setAutoFeature({ sketch: editing.sketch, type: editing.then });
+            setEditing(null); setTab('part');
+          }}
         />
       ) : tab === '2d' ? (
         <Editor2D key="main" drawing={ws.drawing} onChange={(drawing) => update((w) => ({ ...w, drawing }))} onExport />
       ) : tab === 'part' ? (
-        <Part3D onEditSketch={(p, sk) => setEditing({ part: p, sketch: sk })} />
+        <Part3D onEditSketch={(p, sk, then) => setEditing({ part: p, sketch: sk, then })} autoFeature={autoFeature} onAutoDone={() => setAutoFeature(null)} />
       ) : tab === 'asm' ? (
         <Assembly />
       ) : (

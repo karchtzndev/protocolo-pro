@@ -11,6 +11,7 @@ import {
   translate, uid, visible,
 } from './cad';
 import { Btn, C, Sheet, Toggle, mono } from './ui';
+import { Ribbon } from './Ribbon';
 
 type Tool = 'select' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'move' | 'erase' | 'dist' | 'text' | 'dim' | 'constrain';
 type CType = 'horizontal' | 'vertical' | 'coincident' | 'parallel' | 'perpendicular' | 'equal' | 'tangent' | 'concentric' | 'fix';
@@ -615,6 +616,18 @@ export default function Editor2D({ drawing, onChange, title, onDone, onExport }:
 
   return (
     <View style={{ flex: 1 }}>
+      {onDone && (
+        <Ribbon
+          tabs={[{ id: 'sketch', label: 'Esboço', panels: [
+            { title: 'CRIAR', buttons: (['line', 'circle', 'arc', 'rect'] as const).map((t) => ({ icon: t, label: TOOLS.find((x) => x.id === (t === 'rect' ? 'rect' : t))!.label, on: tool === t, onPress: () => switchTool(t) })) },
+            { title: 'RESTRINGIR', buttons: [
+              { icon: 'dim', label: 'Cota', on: tool === 'dim', onPress: () => switchTool('dim') },
+              { icon: 'constraint', label: 'Restrições', on: tool === 'constrain', onPress: () => switchTool('constrain') }] },
+            { title: 'SAIR', buttons: [{ icon: 'finish', label: 'Concluir esboço', big: true, color: '#4ade80', onPress: () => { finish(); onDone(); } }] },
+          ] }]}
+          right={<Btn small on label="✓ Concluir esboço" onPress={() => { finish(); onDone(); }} />}
+        />
+      )}
       <View style={s.topbar}>
         {title && <Text style={s.title} numberOfLines={1}>{title}</Text>}
         <Btn small label="↶" onPress={doUndo} />
@@ -624,7 +637,6 @@ export default function Editor2D({ drawing, onChange, title, onDone, onExport }:
         <Btn small label={`Restrições (${cons.length})`} onPress={() => setConsOpen(true)} />
         {onExport && <Btn small label="DXF ⇪" onPress={exportDXF} />}
         <Btn small label="Limpar" onPress={clearAll} />
-        {onDone && <Btn small on label="✓ Concluir esboço" onPress={() => { finish(); onDone(); }} />}
       </View>
 
       <View style={s.canvas} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...pan.panHandlers}>
