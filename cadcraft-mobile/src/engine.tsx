@@ -29,7 +29,7 @@ export const nextReq = () => reqSeq++;
 
 export const toEnginePart = (p: PartDoc): EnginePart => ({
   id: p.id, color: p.color, features: p.features,
-  sketches: p.sketches.map((s) => ({ id: s.id, plane: s.plane, offset: s.offset, profiles: profilesFromDrawing(s.drawing) })),
+  sketches: p.sketches.map((s) => ({ id: s.id, plane: s.plane, offset: s.offset, frame: s.frame, profiles: profilesFromDrawing(s.drawing) })),
 });
 
 // Copies the engine page and wasm out of the app bundle into a folder the WebView can read.

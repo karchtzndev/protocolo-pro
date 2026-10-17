@@ -8,7 +8,9 @@ export type BoolOp = 'join' | 'cut' | 'intersect';
 export type V3 = [number, number, number];
 
 // A sketch owns its own constrained 2D drawing, edited in the 2D editor (like Inventor).
-export type Sketch = { id: string; name: string; plane: Plane; offset: number; drawing: Drawing };
+// A sketch on a model face carries its own frame (origin, X direction, normal) instead of a named plane.
+export type Frame = { origin: V3; x: V3; n: V3 };
+export type Sketch = { id: string; name: string; plane: Plane; offset: number; frame?: Frame; drawing: Drawing };
 
 // Edges for fillet/chamfer: a rule, or points picked on the model (re-found by position on rebuild).
 export type EdgeSel = { mode: 'all' | 'picked' | 'top' | 'bottom' | 'vertical' | 'circular'; points: V3[] };
@@ -127,7 +129,7 @@ export function defaults(type: FeatureType, part: PartDoc, id: string): Feature 
 }
 
 // Part sent to the engine: sketches reduced to their closed profiles.
-export type EngineSketch = { id: string; plane: Plane; offset: number; profiles: Profile[] };
+export type EngineSketch = { id: string; plane: Plane; offset: number; frame?: Frame; profiles: Profile[] };
 export type EnginePart = { id: string; color: string; sketches: EngineSketch[]; features: Feature[] };
 
 export type View = 'iso' | 'top' | 'front' | 'right' | 'fit';
@@ -150,7 +152,7 @@ export type FromEngine =
   | { type: 'needFile'; id: string }
   | { type: 'partResult'; volume: number; area: number; bbox: V3 | null; errors: Record<string, string> }
   | { type: 'asmResult'; bbox: V3 | null; errors: Record<string, string>; interferences: { a: string; b: string; volume: number }[] }
-  | { type: 'pick'; ref: Omit<Ref, 'comp'> & { comp?: string } }
+  | { type: 'pick'; ref: Omit<Ref, 'comp'> & { comp?: string; frame?: Frame; outline?: [number, number][][] } }
   | { type: 'export'; req: number; base64?: string; error?: string }
   | { type: 'project'; req: number; views?: Projection[]; error?: string }
   | { type: 'measure'; req: number; volumes: Record<string, number> };

@@ -101,7 +101,8 @@ const hash = (s: string) => {
   return (h >>> 0).toString(36) + s.length.toString(36);
 };
 
-function planeOf(sk: { plane: string; offset: number }) {
+function planeOf(sk: { plane: string; offset: number; frame?: { origin: V3; x: V3; n: V3 } }): any {
+  if (sk.frame) return new R.Plane(sk.frame.origin, sk.frame.x, sk.frame.n);
   return R.makePlane(sk.plane as any, sk.offset);
 }
 
@@ -170,8 +171,10 @@ function tool(f: Feature, part: EnginePart, body: any, tools: Map<string, { shap
       if (!(f.distance > 0)) throw new Error('Distância deve ser > 0');
       const pl = planeOf(sk);
       const n = pl.zDir.toTuple() as V3;
-      let s = sketchDrawing(sk).sketchOnPlane(sk.plane, sk.offset).extrude(f.distance);
-      const k = f.direction === 'reversed' ? -f.distance : f.direction === 'symmetric' ? -f.distance / 2 : 0;
+      let s = sketchDrawing(sk).sketchOnPlane(pl).extrude(f.distance);
+      // a cut from a sketch on a model face goes into the material (its normal points outwards)
+      const dir = sk.frame && f.op === 'cut' && f.direction === 'normal' ? 'reversed' : f.direction;
+      const k = dir === 'reversed' ? -f.distance : dir === 'symmetric' ? -f.distance / 2 : 0;
       if (k) s = s.translate(n.map((v) => v * k) as V3);
       return { shape: s, op: f.op };
     }
@@ -179,14 +182,14 @@ function tool(f: Feature, part: EnginePart, body: any, tools: Map<string, { shap
       const sk = sketch(f.sketch);
       const pl = planeOf(sk);
       const axis = (f.axis === 'X' ? pl.xDir : pl.yDir).toTuple();
-      const s = sketchDrawing(sk).sketchOnPlane(sk.plane, sk.offset)
+      const s = sketchDrawing(sk).sketchOnPlane(pl)
         .revolve(axis, { origin: pl.origin.toTuple(), angle: Math.min(Math.max(f.angle, 1), 360) });
       return { shape: s, op: f.op };
     }
     case 'loft': {
       const sks = f.sketches.map(sketch);
       if (sks.length < 2) throw new Error('Escolha 2 ou mais esboços');
-      const [first, ...rest] = sks.map((sk) => sketchDrawing(sk, true).sketchOnPlane(sk.plane, sk.offset));
+      const [first, ...rest] = sks.map((sk) => sketchDrawing(sk, true).sketchOnPlane(planeOf(sk)));
       return { shape: first.loftWith(rest, { ruled: f.ruled === 'sim' }), op: f.op };
     }
     case 'box':
@@ -406,6 +409,50 @@ function faceInfo(m: Meshed, fi: number) {
   return { normal: n0, axis: { p, d } };
 }
 
+// Sketch frame on a planar face (origin = world origin projected on the plane, X kept horizontal
+// when possible) plus the face boundary in that frame, used as projected reference geometry.
+function sketchFrame(m: Meshed, fi: number, p: THREE.Vector3, normal: THREE.Vector3) {
+  const n = normal.clone().normalize();
+  const x = Math.abs(n.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1).cross(n).normalize();
+  if (Math.abs(n.z) > 0.9 && n.z < 0) x.set(-1, 0, 0); // keep a right-handed view from outside the face
+  const y = n.clone().cross(x);
+  const origin = n.clone().multiplyScalar(n.dot(p));
+  const g = m.faceGroups[fi];
+  const idx = Array.from(m.mesh.geometry.index!.array).slice(g.start, g.start + g.count);
+  const pos = m.mesh.geometry.getAttribute('position');
+  // boundary edges are used by exactly one triangle of the face
+  const key = (a: number, b: number) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+  const count = new Map<string, [number, number]>();
+  for (let t = 0; t < idx.length; t += 3)
+    for (const [a, b] of [[idx[t], idx[t + 1]], [idx[t + 1], idx[t + 2]], [idx[t + 2], idx[t]]]) {
+      const k = key(a, b);
+      if (count.has(k)) count.delete(k); else count.set(k, [a, b]);
+    }
+  const to2 = (i: number): [number, number] => {
+    const v = new THREE.Vector3().fromBufferAttribute(pos, i).sub(origin);
+    return [Math.round(v.dot(x) * 1e4) / 1e4, Math.round(v.dot(y) * 1e4) / 1e4];
+  };
+  // chain boundary edges into loops
+  const next = new Map<number, number>();
+  for (const [a, b] of count.values()) next.set(a, b);
+  const seen = new Set<number>();
+  const outline: [number, number][][] = [];
+  for (const start of next.keys()) {
+    if (seen.has(start)) continue;
+    const loop: [number, number][] = [];
+    let cur: number | undefined = start;
+    while (cur !== undefined && !seen.has(cur)) { seen.add(cur); loop.push(to2(cur)); cur = next.get(cur); }
+    // drop points that lie on a straight run
+    const simple = loop.filter((q, i) => {
+      const a = loop[(i - 1 + loop.length) % loop.length], b = loop[(i + 1) % loop.length];
+      return Math.abs((q[0] - a[0]) * (b[1] - a[1]) - (q[1] - a[1]) * (b[0] - a[0])) > 1e-6;
+    });
+    if (simple.length > 2) outline.push(simple);
+  }
+  const r = (v: THREE.Vector3) => v.toArray().map((k) => Math.round(k * 1e6) / 1e6) as V3;
+  return { frame: { origin: r(origin), x: r(x), n: r(n) }, outline };
+}
+
 let downAt: { x: number; y: number } | null = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; });
 renderer.domElement.addEventListener('pointerup', (e) => {
@@ -433,9 +480,11 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   } else {
     const fi = faceOfTriangle(owner.meshed, hit.faceIndex ?? 0);
     const info = faceInfo(owner.meshed, fi);
+    const sk = info.axis ? null : sketchFrame(owner.meshed, fi, local, info.normal);
     post({ type: 'pick', ref: {
       comp: owner.comp, kind: 'face', point: toArr(local), normal: toArr(info.normal),
       axis: info.axis && { p: toArr(info.axis.p), d: toArr(info.axis.d) },
+      ...(sk ?? {}),
     } });
   }
 });

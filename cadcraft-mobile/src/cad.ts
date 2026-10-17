@@ -409,7 +409,7 @@ export function solve(d: Drawing): SolveResult {
 
 // Degrees of freedom of geometry that no constraint touches (construction text excluded).
 function freeDof(d: Drawing, used: Set<string>) {
-  return d.entities.filter((e) => !used.has(e.id) && e.type !== 'text').reduce((s, e) => s + params(e).length, 0);
+  return d.entities.filter((e) => !used.has(e.id) && e.type !== 'text' && !e.construction).reduce((s, e) => s + params(e).length, 0);
 }
 
 // Value a dimension currently measures (used to pre-fill the input).

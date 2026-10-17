@@ -46,26 +46,51 @@ export default function Part3D({ onEditSketch, autoFeature, onAutoDone }: {
   const [partsOpen, setPartsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [face, setFace] = useState<Extract<FromEngine, { type: 'pick' }>['ref'] | null>(null);
 
   const setPart = (fn: (p: PartDoc) => PartDoc) => update((w) => updatePart(w, part.id, fn));
   const sel = part.features.find((f) => f.id === selected) ?? null;
-  const pickKind: 'edge' | 'face' | null = picking && sel
+  const featurePick: 'edge' | 'face' | null = picking && sel
     ? (sel.type === 'shell' ? 'face' : (sel.type === 'fillet' || sel.type === 'chamfer') && sel.edges.mode === 'picked' ? 'edge' : null) : null;
-  const highlight: V3[] = sel?.type === 'fillet' || sel?.type === 'chamfer' ? (sel.edges.mode === 'picked' ? sel.edges.points : []) : sel?.type === 'shell' ? sel.faces : [];
+  // with nothing selected, tapping a face offers "sketch on this face" (like Inventor)
+  const pickKind: 'edge' | 'face' | null = sel ? featurePick : 'face';
+  const highlight: V3[] = sel?.type === 'fillet' || sel?.type === 'chamfer' ? (sel.edges.mode === 'picked' ? sel.edges.points : [])
+    : sel?.type === 'shell' ? sel.faces : face ? [face.point] : [];
   const enginePart = useMemo(() => toEnginePart(part), [part]);
   const consumed = useMemo(() => new Set(part.features.flatMap((f) => ('sketch' in f ? [f.sketch] : 'sketches' in f ? f.sketches : []))), [part]);
   const freeSketches = part.sketches.filter((s) => !consumed.has(s.id));
 
   useEffect(() => {
-    engine.send({ type: 'part', part: enginePart, selected, rollback: pickKind ? selected : null, pick: pickKind, highlight });
-  }, [enginePart, selected, pickKind, engine.ready]);
+    engine.send({ type: 'part', part: enginePart, selected, rollback: featurePick ? selected : null, pick: pickKind, highlight });
+  }, [enginePart, selected, pickKind, engine.ready, face]);
 
   useEffect(() => engine.listen((m) => {
     if (m.type === 'partResult') setResult(m);
-    if (m.type === 'pick') onPick(m.ref.point);
+    if (m.type === 'pick') {
+      if (!sel) setFace(m.ref.frame ? m.ref : null);
+      else onPick(m.ref.point);
+    }
   }), [sel, picking]);
 
-  useEffect(() => { setSelected(null); setPicking(false); }, [part.id]);
+  useEffect(() => { setSelected(null); setPicking(false); setFace(null); }, [part.id]);
+  useEffect(() => { if (sel) setFace(null); }, [sel]);
+
+  // New sketch on the tapped face; its boundary comes in as projected (construction) geometry.
+  const sketchOnFace = () => {
+    if (!face?.frame) return;
+    const sk = newSketch(uid(), part.sketches.length + 1);
+    sk.frame = face.frame;
+    sk.drawing = {
+      ...sk.drawing,
+      layers: [...sk.drawing.layers, { name: 'Projetada', color: '#fbbf24', visible: true, aci: 2 }],
+      entities: (face.outline ?? []).map((loop) => ({
+        id: uid(), layer: 'Projetada', type: 'pline' as const, closed: true, construction: true, pts: loop.map(([x, y]) => ({ x, y })),
+      })),
+    };
+    setPart((p) => ({ ...p, sketches: [...p.sketches, sk] }));
+    setFace(null);
+    onEditSketch(part.id, sk.id, 'extrude');
+  };
 
   // Like Inventor: finishing a new sketch opens the Extrude dialog with that profile.
   useEffect(() => {
@@ -202,7 +227,7 @@ export default function Part3D({ onEditSketch, autoFeature, onAutoDone }: {
   const sketchRow = (sk: PartDoc['sketches'][number], nested = false) => (
     <View key={sk.id} style={[u.treeRow, nested && { paddingLeft: 30, paddingVertical: 3 }]}>
       <Icon name="sketch" size={16} color={C.warn} />
-      <Text style={{ color: C.warn, fontSize: 13, flex: 1 }} numberOfLines={1}>{sk.name} <Text style={{ color: C.dim }}>({sk.plane}{sk.offset ? ` ${sk.offset > 0 ? '+' : ''}${sk.offset}` : ''})</Text></Text>
+      <Text style={{ color: C.warn, fontSize: 13, flex: 1 }} numberOfLines={1}>{sk.name} <Text style={{ color: C.dim }}>({sk.frame ? 'face' : sk.plane}{!sk.frame && sk.offset ? ` ${sk.offset > 0 ? '+' : ''}${sk.offset}` : ''})</Text></Text>
       <Btn small label="Editar" onPress={() => onEditSketch(part.id, sk.id)} />
       {!nested && <Btn small danger label="✕" onPress={() => setPart((p) => ({ ...p, sketches: p.sketches.filter((x) => x.id !== sk.id) }))} />}
     </View>
@@ -215,6 +240,14 @@ export default function Part3D({ onEditSketch, autoFeature, onAutoDone }: {
       <Viewport />
 
       <View style={u.panel}>
+        {face && !sel && (
+          <View style={[u.row, { backgroundColor: '#3b2a0b', marginHorizontal: -8, marginTop: -8, padding: 8, marginBottom: 4 }]}>
+            <Icon name="sketch" size={22} color={C.warn} />
+            <Text style={{ color: C.text, flex: 1, fontSize: 13 }}>Face plana selecionada</Text>
+            <Btn small on label="Criar esboço nesta face" onPress={sketchOnFace} />
+            <Btn small label="✕" onPress={() => setFace(null)} />
+          </View>
+        )}
         {sel ? (
           <FeatureDialog f={sel} part={part} update={updateFeature} remove={remove} move={move} isNew={isNew}
             picking={picking} setPicking={setPicking} error={result?.errors[sel.id]} onClose={closeDialog} />
@@ -347,6 +380,7 @@ function SketchSheet({ open, onClose, onCreate, has2d, forFeature }: { open: boo
   const [offset, setOffset] = useState(0);
   return (
     <Sheet open={open} title={forFeature ? `${FEATURE_LABEL[forFeature]}: escolha o plano do esboço` : 'Iniciar esboço 2D'} onClose={onClose}>
+      <Text style={[u.hint, { color: C.warn }]}>Dica: para desenhar sobre a peça, feche esta janela e toque numa face plana do modelo.</Text>
       <Text style={u.hint}>Depois de desenhar, toque em "✓ Concluir esboço" e a {forFeature ? FEATURE_LABEL[forFeature] : 'Extrusão'} abre com esse perfil. O esboço abre no editor 2D com cotas e restrições. Formas fechadas viram perfis; formas internas viram furos. Linhas de construção são ignoradas.</Text>
       <Choice label="Plano" value={plane} options={[['XY', 'XY (topo)'], ['XZ', 'XZ (frente)'], ['YZ', 'YZ (lateral)']]} onChange={(v) => setPlane(v as Plane)} />
       <NumField label="Deslocamento" value={offset} onChange={setOffset} />

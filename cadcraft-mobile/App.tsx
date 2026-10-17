@@ -37,7 +37,7 @@ function Shell() {
       {sketch && part ? (
         <Editor2D
           key={sketch.id}
-          title={`${part.name} › ${sketch.name} (${sketch.plane})`}
+          title={`${part.name} › ${sketch.name} (${sketch.frame ? 'face' : sketch.plane})`}
           drawing={sketch.drawing}
           onChange={(drawing) => update((w) => updatePart(w, part.id, (p) => ({ ...p, sketches: p.sketches.map((k) => (k.id === sketch.id ? { ...k, drawing } : k)) })))}
           onDone={() => {
