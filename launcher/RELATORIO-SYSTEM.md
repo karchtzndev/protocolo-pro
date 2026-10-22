@@ -30,3 +30,6 @@ Testar no PC: abrir `l2.exe`, ir ate o login e ver se aparece o servidor Akamana
 
 ## Correção (22/10): "Files are corrupted !!!! Please, full check"
 Ao abrir o jogo, o cliente recusou o `l2.ini` recriptografado. Causa: todo arquivo `Lineage2Ver413` original termina com um **rodapé de 20 bytes** (12 bytes zero + CRC32 do arquivo inteiro sem o rodapé, little-endian + 4 bytes zero); a biblioteca L2crypt não escreve esse rodapé e o `l2.exe` confere. O rodapé foi acrescentado (regra validada em 6 arquivos originais) e o `l2.ini` voltou a ter o mesmo tamanho do original (3888 bytes). Não testado no jogo ainda.
+
+### Atualização (mesmo dia): a mensagem com 5 "!" é do User.ini
+No `Core.dll` a mensagem com 5 pontos de exclamação é a do **User.ini** (`USERINI=User.ini`); a do `L2.ini` tem menos. O erro apareceu igual antes e depois do rodapé do `l2.ini`, então o arquivo que o cliente não consegue ler é o `user.ini` que já estava na pasta do jogador (veio do cliente original do torrent). O rodapé do `l2.ini` continua correto, mas não era a causa. O `user.ini` do System de origem (compatível com estes binários) voltou ao pacote `System_corrigido.zip`; o manifesto continua sem ele, para o launcher nunca sobrescrever as preferências do jogador.
