@@ -10,9 +10,9 @@ Analise feita sobre o ZIP enviado (158 arquivos, 78 MB). Backup integral: `entre
 
 ## Tarefa por tarefa
 1. **Backup/lista**: feito (zip acima). Principais: `l2.exe`, `l2.ini`, `Option.ini`, `user.ini`, `localization.ini`, 70+ `.dat` (todos `-e` = ingles), `.dll` (engine, nwindow, d3d, audio, npkcrypt = nProtect), `.u` e `.int`.
-2. **l2.ini**: **esta criptografado** (`Lineage2Ver413`). NAO foi editado. Nao e possivel ler daqui para onde ele aponta hoje (ServerAddr/ServerPort). Veja "O que voce precisa fazer".
+2. **l2.ini**: estava criptografado (`Lineage2Ver413`, chave do l2encdec, mesma do cliente ja modificado). Descriptografei com a biblioteca open source [acmi/L2crypt](https://github.com/acmi/L2crypt) (MIT), editei como texto, recriptografei como Ver413 e confirmei que descriptografa de volta identico. Antes: `ServerAddr=127.0.0.1`. Agora: `ServerAddr=l2akamanah.com.br` (o dominio resolve para 213.109.169.203; se algum jogador nao resolver, troque pelo IP). **Nao existe chave de porta de login no l2.ini**: a 2106 e padrao do cliente; o `Port=7777` do `[URL]` foi mantido. Conferencia legivel: `entregas/l2.ini_legivel_conferencia.txt`. **Ainda nao testado no jogo.**
 3. **L2Journey/Journey**: busquei ASCII e UTF-16 (sem diferenciar maiusculas) em **todos** os 158 arquivos, inclusive `.dat`, `.u`, `.dll` e `l2.exe`: **nenhuma ocorrencia**. Nada foi trocado. Dentro de `l2.ini` e dos `.dat` o texto esta criptografado, entao a busca nao enxerga o conteudo: pode haver "Journey" la dentro.
-4. **HWID (RequestHardWareInfo)**: nao da para provar estaticamente. Os nomes de pacote nao aparecem como texto no `l2.exe` (so existe o texto `HardWare`, ligado ao `HardWare.ini` local, que o cliente escreve com CPU/VGA/RAM). **Teste definitivo**: logar no servidor e ver no log do AkamanahGuard se chega o pacote. Se nao chegar: menor solucao = **launcher** (Fase 2, canal HTTPS proprio com hash do computador), pois uma DLL injetada em `l2.exe` (nProtect/npkcrypt presente) e fragil e sujeita a antivirus.
+4. **HWID (RequestHardWareInfo)**: o `l2.ini` tem `NetSendHardWare=true`, o que indica que o cliente foi configurado para enviar os dados de hardware (por isso o `HardWare.ini`). Mas nao da para provar estaticamente que o pacote chega. Os nomes de pacote nao aparecem como texto no `l2.exe` (so existe o texto `HardWare`, ligado ao `HardWare.ini` local, que o cliente escreve com CPU/VGA/RAM). **Teste definitivo**: logar no servidor e ver no log do AkamanahGuard se chega o pacote. Se nao chegar: menor solucao = **launcher** (Fase 2, canal HTTPS proprio com hash do computador), pois uma DLL injetada em `l2.exe` (nProtect/npkcrypt presente) e fragil e sujeita a antivirus.
 5. **Aviso de versao**: vem do **servidor** (lista de protocolos aceitos, 267/268) comparada com o que o `l2.exe` informa; nao ha ajuste em `Option.ini` ou atalho que resolva isso se o numero for diferente. `Option.ini` nao tem chave de versao. Se aparecer o aviso, o `l2.exe` e de outro protocolo e precisa ser trocado ou o servidor aceitar o protocolo dele.
 6. **Teste de conexao**: **nao foi feito** (ambiente Linux na nuvem, sem Windows/rede para a VPS). Precisa ser feito no seu PC.
 
@@ -22,7 +22,8 @@ Analise feita sobre o ZIP enviado (158 arquivos, 78 MB). Backup integral: `entre
 | `Option.ini` | removidas secoes `[UIEditor]` e `[ScenePlayer]` (caminho do dev); audio: mudo desligado e volumes 0.5 (antes tudo mudo/0) |
 | `user.ini`, `HardWare.ini`, `WindowsInfo.ini`, `s_info.ini` | **removidos** (dados da maquina de quem preparou: CPU, GPU, versao do Windows; o jogo recria) |
 | `l2.log`, `l2Second.log`, `CheckGrp.log` | **removidos** (logs) |
-| `l2.ini` e todos os binarios/`.dat` | **intactos** |
+| `l2.ini` | `ServerAddr` 127.0.0.1 -> `l2akamanah.com.br`; `[AutoLogOn]` desligado e login/senha de teste (`zodiac`) apagados; recriptografado Ver413 |
+| demais binarios/`.dat` | **intactos** |
 
-## O que voce precisa fazer (l2.ini)
-O `l2.ini` precisa conter `ServerAddr=l2akamanah.com.br` (ou `213.109.169.203`) e `ServerPort=2106`. Como o formato `Lineage2Ver413` e criptografado, use uma ferramenta comunitaria de L2 que leia/grave esse formato (da familia "L2 Encdec"/"L2 File Edit"; **nao testei nenhuma aqui**, baixe de fonte confiavel e passe antivirus): descriptografe, ajuste as duas linhas, criptografe de novo como Ver413 e substitua o arquivo. Depois rode `gerar-manifesto` para publicar o `l2.ini` pelo launcher. Me envie o `l2.ini` descriptografado (sem senhas) e eu confiro.
+## Pendente
+Testar no PC: abrir `l2.exe`, ir ate o login e ver se aparece o servidor Akamanah. Se falhar, mande o `l2.log`/print. Se algum aviso de versao aparecer, o `l2.exe` tem outro protocolo (o `l2.ini` tem `L2VersionCheck=false`).
