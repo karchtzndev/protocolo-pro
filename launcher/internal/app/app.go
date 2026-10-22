@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,19 +24,19 @@ type App struct {
 	Root string // pasta do launcher.exe
 	Log  *log.Logger
 
-	mu    sync.Mutex
-	child *os.Process
+	mu      sync.Mutex
+	running bool
 }
 
 func (a *App) SystemPath() string { return filepath.Join(a.Root, a.Cfg.SystemDir) }
 
-// Progress: texto + fracao (0..1; <0 = indeterminado).
-type Progress func(text string, frac float64)
+// Progress: texto + fracao do arquivo atual e do total (0..1; <0 = indeterminado).
+type Progress func(text string, file, total float64)
 
 // Update compara com o manifesto e baixa so o que difere.
 func (a *App) Update(ctx context.Context, prog Progress) error {
 	c := &http.Client{Timeout: 5 * time.Minute}
-	prog("Buscando lista de arquivos...", -1)
+	prog("Buscando lista de arquivos...", -1, -1)
 	m, err := patch.FetchManifest(ctx, c, a.Cfg.ManifestURL)
 	if err != nil {
 		a.Log.Printf("manifesto: %v", err)
@@ -44,14 +44,14 @@ func (a *App) Update(ctx context.Context, prog Progress) error {
 	}
 	a.Log.Printf("manifesto com %d arquivos", len(m.Files))
 	todo, err := patch.Diff(a.SystemPath(), m, a.Cfg.IgnoreFiles, func(i, n int) {
-		prog(fmt.Sprintf("Verificando arquivos (%d/%d)", i+1, n), float64(i)/float64(n))
+		prog(fmt.Sprintf("Verificando arquivos (%d/%d)", i+1, n), -1, float64(i)/float64(n))
 	})
 	if err != nil {
 		return err
 	}
 	if len(todo) == 0 {
 		a.Log.Print("tudo atualizado")
-		prog("Cliente atualizado.", 1)
+		prog("Cliente atualizado.", 1, 1)
 		return nil
 	}
 	var total, done int64
@@ -60,9 +60,13 @@ func (a *App) Update(ctx context.Context, prog Progress) error {
 	}
 	a.Log.Printf("%d arquivos para baixar (%d bytes)", len(todo), total)
 	for i, e := range todo {
-		prog(fmt.Sprintf("Baixando %s (%d/%d)", e.Path, i+1, len(todo)), float64(done)/float64(max(total, 1)))
+		var fileDone int64
+		label := fmt.Sprintf("Baixando %s (%d/%d)", e.Path, i+1, len(todo))
+		prog(label, 0, float64(done)/float64(max(total, 1)))
 		err := patch.Download(ctx, c, a.Cfg.PatchBaseURL, a.SystemPath(), e, func(n int64) {
 			done += n
+			fileDone += n
+			prog(label, float64(fileDone)/float64(max(e.Size, 1)), float64(done)/float64(max(total, 1)))
 		})
 		if err != nil {
 			a.Log.Printf("download %s: %v", e.Path, err)
@@ -70,7 +74,7 @@ func (a *App) Update(ctx context.Context, prog Progress) error {
 		}
 		a.Log.Printf("atualizado: %s", e.Path)
 	}
-	prog("Atualizacao concluida.", 1)
+	prog("Atualizacao concluida.", 1, 1)
 	return nil
 }
 
@@ -93,7 +97,7 @@ var ErrAlreadyRunning = errors.New("o jogo ja esta aberto por este launcher")
 func (a *App) Launch() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.child != nil {
+	if a.running {
 		return ErrAlreadyRunning
 	}
 	bad, err := a.CheckBlacklist()
@@ -108,17 +112,17 @@ func (a *App) Launch() error {
 	if _, err := os.Stat(exe); err != nil {
 		return fmt.Errorf("%s nao encontrado em %s", a.Cfg.GameExe, a.Cfg.SystemDir)
 	}
-	cmd := exec.Command(exe, a.Cfg.GameArgs...)
-	cmd.Dir = a.SystemPath()
-	if err := cmd.Start(); err != nil {
-		return err
+	wait, err := startGame(exe, a.SystemPath(), a.Cfg.GameArgs)
+	if err != nil {
+		a.Log.Printf("falha ao abrir o jogo: %v", err)
+		return fmt.Errorf("nao foi possivel abrir o jogo: %w", err)
 	}
-	a.child = cmd.Process
+	a.running = true
 	a.Log.Print("jogo iniciado")
 	go func() {
-		cmd.Wait()
+		wait()
 		a.mu.Lock()
-		a.child = nil
+		a.running = false
 		a.mu.Unlock()
 		a.Log.Print("jogo encerrado")
 	}()
@@ -128,5 +132,15 @@ func (a *App) Launch() error {
 func (a *App) GameRunning() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.child != nil
+	return a.running
+}
+
+// FriendlyError traduz erros de rede para uma mensagem que o jogador entende.
+func FriendlyError(err error) string {
+	var ne net.Error
+	var dns *net.DNSError
+	if errors.As(err, &dns) || errors.As(err, &ne) || errors.Is(err, context.DeadlineExceeded) {
+		return "Sem conexao com a internet ou com o servidor de atualizacao. Verifique sua internet e clique em Verificar arquivos."
+	}
+	return "Falha na atualizacao. Clique em Verificar arquivos para tentar de novo (detalhes em launcher.log)."
 }
