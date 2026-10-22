@@ -199,6 +199,9 @@ func main() {
 
 	mw.Closing().Attach(func(_ *bool, _ walk.CloseReason) { stop() })
 	runUpdate()
+	// Criada sem o declarative, a janela nasce escondida: precisa ser mostrada explicitamente.
+	mw.Show()
+	win.SetForegroundWindow(mw.Handle())
 	mw.Run()
 	logger.Print("launcher encerrado")
 }
