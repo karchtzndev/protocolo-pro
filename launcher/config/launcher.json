@@ -1,0 +1,12 @@
+{
+  "serverName": "L2 Akamanah",
+  "manifestUrl": "https://l2akamanah.com.br/patch/manifest.json",
+  "patchBaseUrl": "https://l2akamanah.com.br/patch",
+  "systemDir": "System",
+  "gameExe": "l2.exe",
+  "gameArgs": [],
+  "ignoreFiles": ["user.ini", "Option.ini", "chatfilter.ini", "l2.log", "l2Second.log", "CheckGrp.log", "HardWare.ini", "WindowsInfo.ini", "s_info.ini"],
+  "blacklistFile": "blacklist.txt",
+  "allowPlayIfUpdateFails": false,
+  "hwid": { "enabled": false, "endpoint": "" }
+}

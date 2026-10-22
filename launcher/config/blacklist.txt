@@ -1,0 +1,26 @@
+# Lista negra do launcher L2 Akamanah. Um nome de processo por linha, sem .exe.
+# Use * no fim para prefixo (ex.: autoclicker*). Linhas com # sao comentarios.
+# Isto detecta so o obvio; nao e protecao completa.
+cheatengine
+cheatengine-x86_64
+cheatengine-i386
+cheatengine-x86_64-sse4-avx2
+ce_launcher
+autoclicker*
+auto-clicker*
+op auto clicker*
+gsautoclicker
+murgee*
+tinytask
+jitbit*
+macrorecorder*
+pulover*
+autohotkey*
+ghub_macro*
+artmoney*
+wpepro
+wpe pro
+ollydbg
+x64dbg
+x32dbg
+processhacker
