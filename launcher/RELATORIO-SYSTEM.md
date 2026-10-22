@@ -27,3 +27,6 @@ Analise feita sobre o ZIP enviado (158 arquivos, 78 MB). Backup integral: `entre
 
 ## Pendente
 Testar no PC: abrir `l2.exe`, ir ate o login e ver se aparece o servidor Akamanah. Se falhar, mande o `l2.log`/print. Se algum aviso de versao aparecer, o `l2.exe` tem outro protocolo (o `l2.ini` tem `L2VersionCheck=false`).
+
+## Correção (22/10): "Files are corrupted !!!! Please, full check"
+Ao abrir o jogo, o cliente recusou o `l2.ini` recriptografado. Causa: todo arquivo `Lineage2Ver413` original termina com um **rodapé de 20 bytes** (12 bytes zero + CRC32 do arquivo inteiro sem o rodapé, little-endian + 4 bytes zero); a biblioteca L2crypt não escreve esse rodapé e o `l2.exe` confere. O rodapé foi acrescentado (regra validada em 6 arquivos originais) e o `l2.ini` voltou a ter o mesmo tamanho do original (3888 bytes). Não testado no jogo ainda.
