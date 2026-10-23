@@ -2,6 +2,8 @@
 package main
 
 import (
+	"image"
+	"image/draw"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -30,7 +32,16 @@ func main() {
 	cases["6-noticias-2"] = ui.State{Status: "Baixando Engine.dll (12/31)", File: .42, Total: .27, Busy: true, News: news, NewsIdx: 1, Tick: 9}
 	for n, s := range cases {
 		f, _ := os.Create(filepath.Join(out, n+".png"))
-		png.Encode(f, ui.Render(s))
+		fr := ui.Render(s)
+		if n == "3-pronto" || n == "5-noticias" { // mostra o cursor proprio sobre o botao Verificar
+			cur := ui.CursorImage()
+			for i := 0; i < len(cur.Pix); i += 4 { // RGBA reto -> pre-multiplicado, como o draw espera
+				a := uint32(cur.Pix[i+3])
+				cur.Pix[i], cur.Pix[i+1], cur.Pix[i+2] = uint8(uint32(cur.Pix[i])*a/255), uint8(uint32(cur.Pix[i+1])*a/255), uint8(uint32(cur.Pix[i+2])*a/255)
+			}
+			draw.Draw(fr, image.Rect(712-ui.CursorHotX, 612-ui.CursorHotY, 712-ui.CursorHotX+ui.CursorSize, 612-ui.CursorHotY+ui.CursorSize), cur, image.Point{}, draw.Over)
+		}
+		png.Encode(f, fr)
 		f.Close()
 	}
 }

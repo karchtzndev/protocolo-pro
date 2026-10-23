@@ -80,6 +80,11 @@ func main() {
 		return
 	}
 	cw.SetClearsBackground(false)
+	// cursor proprio (ponteiro dourado), no lugar da seta padrao do Windows
+	if hc := newCursor(ui.CursorImage(), ui.CursorHotX, ui.CursorHotY); hc != 0 {
+		setWindowCursor(mw.Handle(), hc)
+		setWindowCursor(cw.Handle(), hc)
+	}
 	cw.SetPaintMode(walk.PaintBuffered)
 
 	// Janela sem a moldura padrao, com tamanho e posicao no centro da tela.

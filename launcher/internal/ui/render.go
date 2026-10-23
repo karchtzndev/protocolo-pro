@@ -189,87 +189,101 @@ func arc(img *image.RGBA, cx, cy, r float64, a0, a1 float64, w float64, c rgb) {
 
 func buildStatic() *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, W, H))
-	// moldura de bronze com chanfro
-	fillRR(img, img.Rect, 6, func(_, y int) rgb { return lerp(rgb{150, 124, 78, 255}, rgb{66, 54, 34, 255}, float64(y)/H) })
-	inner := img.Rect.Inset(5)
-	for x := 3; x < W-3; x++ {
-		blend(img, x, 2, rgb{214, 188, 130, 255}, .6)
-		blend(img, x, H-3, rgb{30, 24, 14, 255}, .6)
-	}
-	for y := 3; y < H-3; y++ {
-		blend(img, 2, y, rgb{190, 164, 108, 255}, .5)
-		blend(img, W-3, y, rgb{30, 24, 14, 255}, .5)
-	}
-	// fundo azul: nevoa, brilho horizontal na parte de cima e vinheta
-	cx, cy := float64(W)/2, 210.0
-	for y := inner.Min.Y; y < inner.Max.Y; y++ {
-		for x := inner.Min.X; x < inner.Max.X; x++ {
-			ty := float64(y-inner.Min.Y) / float64(inner.Dy())
-			base := lerp(rgb{24, 52, 90, 255}, rgb{12, 26, 48, 255}, math.Pow(ty, .8))
-			g := clamp(1-math.Hypot((float64(x)-cx)/560, (float64(y)-cy)/250), 0, 1)
-			c := lerp(base, rgb{52, 96, 154, 255}, g*g*.8)
+	drawFrame(img)
+
+	// area azul abaixo da barra de titulo
+	area := image.Rect(5, titleY1, W-5, H-4)
+	cx, cy := float64(W)/2, 215.0
+	for y := area.Min.Y; y < area.Max.Y; y++ {
+		for x := area.Min.X; x < area.Max.X; x++ {
+			ty := float64(y-area.Min.Y) / float64(area.Dy())
+			base := lerp(rgb{R: 28, G: 56, B: 96, A: 255}, rgb{R: 14, G: 30, B: 54, A: 255}, math.Pow(ty, .8))
+			g := clamp(1-math.Hypot((float64(x)-cx)/560, (float64(y)-cy)/260), 0, 1)
+			c := lerp(base, rgb{R: 54, G: 98, B: 156, A: 255}, g*g*.8)
 			n := cloud(float64(x), float64(y))
-			c = lerp(c, rgb{70, 112, 168, 255}, clamp(n*.5+.1, 0, .35)*(1-ty))
-			c = lerp(c, rgb{6, 14, 28, 255}, clamp(-n*.5, 0, .25)*.6)
+			c = lerp(c, rgb{R: 72, G: 114, B: 170, A: 255}, clamp(n*.5+.1, 0, .35)*(1-ty))
+			c = lerp(c, rgb{R: 6, G: 14, B: 28, A: 255}, clamp(-n*.5, 0, .25)*.6)
 			v := clamp(math.Hypot((float64(x)-cx)/640, (float64(y)-cy)/560), 0, 1)
-			c = lerp(c, rgb{4, 10, 22, 255}, v*v*.5)
+			c = lerp(c, rgb{R: 4, G: 10, B: 22, A: 255}, v*v*.5)
 			blend(img, x, y, c, 1)
 		}
 	}
-	// muro de pedra escuro, com veios verticais, logo acima do painel
-	y0, y1 := H-218, H-132
-	for y := y0; y < y1; y++ {
-		ramp := math.Pow(float64(y-y0)/float64(y1-y0), 1.4)
-		for x := inner.Min.X; x < inner.Max.X; x++ {
+	// sombra logo abaixo da barra de titulo
+	for i := 0; i < 8; i++ {
+		for x := area.Min.X; x < area.Max.X; x++ {
+			blend(img, x, titleY1+i, rgb{R: 2, G: 6, B: 14, A: 255}, .55*(1-float64(i)/8))
+		}
+	}
+	// muro de pedra escura acima da faixa de baixo
+	y0 := bandTop - 82
+	for y := y0; y < bandTop; y++ {
+		ramp := math.Pow(float64(y-y0)/float64(bandTop-y0), 1.2)
+		for x := area.Min.X; x < area.Max.X; x++ {
 			streak := hash2(x/2, 7)*.5 + hash2(x/9, 3)*.5
-			c := lerp(rgb{8, 16, 30, 255}, rgb{30, 44, 66, 255}, streak*.7)
-			blend(img, x, y, c, clamp(.15+.8*ramp, 0, .92))
-			if hash2(x/3, y/5) > .93 {
-				blend(img, x, y, rgb{96, 120, 150, 255}, .08*ramp)
+			c := lerp(rgb{R: 12, G: 20, B: 34, A: 255}, rgb{R: 52, G: 58, B: 70, A: 255}, streak*.75)
+			blend(img, x, y, c, clamp(.1+.85*ramp, 0, .95))
+			if h := hash2(x/3, y/4); h > .94 {
+				blend(img, x, y, rgb{R: 120, G: 132, B: 150, A: 255}, .10*ramp)
+			} else if h < .05 {
+				blend(img, x, y, rgb{R: 0, G: 0, B: 0, A: 255}, .18*ramp)
 			}
 		}
 	}
-	// barra de titulo
-	title := image.Rect(5, 5, W-5, 36)
-	for y := title.Min.Y; y < title.Max.Y; y++ {
-		c := lerp(rgb{74, 60, 40, 255}, rgb{34, 27, 18, 255}, float64(y-title.Min.Y)/float64(title.Dy()))
-		for x := title.Min.X; x < title.Max.X; x++ {
+	// faixa de baixo: azul escuro que escurece ate quase preto
+	for y := bandTop; y < area.Max.Y; y++ {
+		t := float64(y-bandTop) / float64(area.Max.Y-bandTop)
+		c := lerp(rgb{R: 18, G: 52, B: 88, A: 255}, rgb{R: 5, G: 11, B: 20, A: 255}, math.Pow(t, .7))
+		for x := area.Min.X; x < area.Max.X; x++ {
 			blend(img, x, y, c, 1)
 		}
 	}
-	for x := title.Min.X; x < title.Max.X; x++ {
-		blend(img, x, title.Min.Y, rgb{150, 126, 84, 255}, .7)
-		blend(img, x, title.Max.Y, rgb{16, 12, 7, 255}, 1)
-		blend(img, x, title.Max.Y+1, rgb{120, 100, 64, 255}, .5)
+	for x := area.Min.X; x < area.Max.X; x++ {
+		blend(img, x, bandTop, rgb{R: 4, G: 10, B: 20, A: 255}, .9)
+		blend(img, x, bandTop+1, rgb{R: 54, G: 102, B: 150, A: 255}, .5)
 	}
-	drawText(img, "L2 Akamanah - Atualizador", 22, 26, face(false, 13), rgb{206, 190, 150, 255}, 0)
-	// placa central ornamentada
-	plate := image.Rect(W/2-120, 1, W/2+120, 40)
-	box(img, plate, 12, rgb{176, 148, 92, 255}, rgb{86, 68, 42, 255}, rgb{36, 28, 18, 255})
-	box(img, plate.Inset(4), 9, rgb{104, 84, 52, 255}, rgb{58, 46, 30, 255}, rgb{28, 22, 14, 255})
-	for side := -1; side <= 1; side += 2 {
-		sx := W/2 + side*(120+2)
-		for d := 0; d < 9; d++ {
-			for e := -d; e <= d; e++ {
-				blend(img, sx+side*d, 20+e, rgb{150, 124, 78, 255}, .9)
-			}
+
+	// titulo
+	drawText(img, "L2 Akamanah - Atualizador", 66, titleY0+25, face(false, 13), rgb{R: 188, G: 176, B: 144, A: 255}, 0)
+	drawText(img, "L2 AKAMANAH", W/2+1, titleY0+31, serifFace(15), rgb{R: 14, G: 10, B: 5, A: 200}, 1)
+	drawText(img, "L2 AKAMANAH", W/2, titleY0+30, serifFace(15), rgb{R: 214, G: 198, B: 160, A: 255}, 1)
+
+	// painel das barras: contorno fino claro, miolo azul-marinho com brilho no canto de cima
+	pr := rPanel
+	fillRR(img, pr, 3, solid(rgb{R: 46, G: 92, B: 140, A: 255}))
+	in := pr.Inset(1)
+	fillRR(img, in, 3, func(x, y int) rgb {
+		t := float64(y-in.Min.Y) / float64(in.Dy())
+		c := lerp(rgb{R: 16, G: 54, B: 92, A: 255}, rgb{R: 8, G: 28, B: 52, A: 255}, math.Pow(t, .8))
+		g := clamp(1-math.Hypot(float64(x-in.Min.X)/260, float64(y-in.Min.Y)/60), 0, 1)
+		return lerp(c, rgb{R: 34, G: 86, B: 136, A: 255}, g*.45)
+	})
+	fc := face(false, 14)
+	lab := rgb{R: 150, G: 176, B: 206, A: 255}
+	drawText(img, "Arquivo atual", 62, barY1()+9, fc, lab, 0)
+	drawText(img, "Progresso total", 62, barY2()+9, fc, lab, 0)
+
+	// placa de pedra do botao JOGAR, com fio de bronze e o botao pequeno no canto
+	pl := rPlate
+	fillRect(img, pl, rgb{R: 6, G: 8, B: 12, A: 255})
+	pi := pl.Inset(1)
+	for y := pi.Min.Y; y < pi.Max.Y; y++ {
+		for x := pi.Min.X; x < pi.Max.X; x++ {
+			streak := hash2(x/3, 11)*.5 + hash2(x/7, y/6)*.5
+			blend(img, x, y, lerp(rgb{R: 24, G: 27, B: 33, A: 255}, rgb{R: 58, G: 62, B: 72, A: 255}, streak), 1)
 		}
 	}
-	drawText(img, "L2 AKAMANAH", W/2+1, 28, serifFace(17), rgb{20, 14, 8, 200}, 1)
-	drawText(img, "L2 AKAMANAH", W/2, 27, serifFace(17), cGold, 1)
-	// ornamentos nos cantos de baixo
-	for _, c := range []struct{ x, y, a0 float64 }{{16, H - 16, -math.Pi / 2}, {W - 16, H - 16, math.Pi}} {
-		arc(img, c.x, c.y, 26, c.a0, c.a0+math.Pi/2, 3, rgb{176, 148, 92, 255})
-		arc(img, c.x, c.y, 18, c.a0, c.a0+math.Pi/2, 1.5, rgb{110, 90, 56, 255})
-	}
-	// painel inferior
-	box(img, rPanel, 5, rgb{96, 132, 180, 255}, rgb{22, 46, 80, 244}, rgb{10, 24, 46, 250})
-	fc := face(false, 14)
-	drawText(img, "Arquivo atual", 60, rPanel.Min.Y+55, fc, rgb{142, 170, 204, 255}, 0)
-	drawText(img, "Progresso total", 60, rPanel.Min.Y+79, fc, rgb{142, 170, 204, 255}, 0)
-	drawText(img, "L2 Akamanah - servidor privado, sem vinculo com a NCSOFT", W/2, H-12, serifFace(12), rgb{110, 128, 152, 255}, 1)
+	arc(img, float64(playC.X), float64(playC.Y), float64(playR)+7, -math.Pi*.95, math.Pi*.35, 1.6, rgb{R: 96, G: 78, B: 44, A: 255})
+	kx, ky := float64(pl.Max.X-16), float64(pl.Min.Y+22)
+	dot(img, kx, ky, 22, rgb{R: 74, G: 60, B: 34, A: 255})
+	dot(img, kx, ky, 17, rgb{R: 12, G: 13, B: 16, A: 255})
+	dot(img, kx-3, ky-3, 5, rgb{R: 70, G: 74, B: 84, A: 255})
+
+	drawText(img, "L2 Akamanah - servidor privado, sem vinculo com a NCSOFT", W/2, H-12, serifFace(12), rgb{R: 112, G: 122, B: 136, A: 255}, 1)
 	return img
 }
+
+func barY1() int { return rPanel.Min.Y + 36 }
+func barY2() int { return rPanel.Min.Y + 56 }
 
 // drawLogo desenha a logo com um reflexo suave embaixo, centralizada em ly.
 func drawLogo(img *image.RGBA, ly int) {
@@ -357,13 +371,11 @@ func drawNews(img *image.RGBA, s State) {
 	}
 }
 
-var barR = image.Rect(190, 0, 620, 0)
-
 func drawBar(img *image.RGBA, y int, frac float64, tick int) {
-	r := image.Rect(190, y, 620, y+11)
-	fillRR(img, r, 3, solid(rgb{60, 90, 130, 255}))
+	r := image.Rect(barX0, y, barX1, y+9)
+	fillRR(img, r, 1, solid(rgb{R: 10, G: 28, B: 50, A: 255}))
 	in := r.Inset(1)
-	fillRR(img, in, 2, solid(rgb{3, 6, 12, 255}))
+	fillRR(img, in, 1, solid(rgb{R: 0, G: 0, B: 0, A: 255}))
 	var fill image.Rectangle
 	if frac < 0 {
 		w := 110
@@ -376,29 +388,40 @@ func drawBar(img *image.RGBA, y int, frac float64, tick int) {
 	} else {
 		fill = image.Rect(in.Min.X, in.Min.Y, in.Min.X+int(float64(in.Dx())*clamp(frac, 0, 1)), in.Max.Y)
 	}
-	if !fill.Empty() {
-		for yy := fill.Min.Y; yy < fill.Max.Y; yy++ {
-			c := lerp(rgb{120, 196, 255, 255}, rgb{38, 110, 200, 255}, float64(yy-fill.Min.Y)/float64(fill.Dy()))
-			for xx := fill.Min.X; xx < fill.Max.X; xx++ {
-				blend(img, xx, yy, c, 1)
-			}
+	for yy := fill.Min.Y; yy < fill.Max.Y; yy++ {
+		c := lerp(rgb{R: 118, G: 196, B: 255, A: 255}, rgb{R: 34, G: 104, B: 196, A: 255}, float64(yy-fill.Min.Y)/float64(max(1, fill.Dy())))
+		for xx := fill.Min.X; xx < fill.Max.X; xx++ {
+			blend(img, xx, yy, c, 1)
 		}
 	}
 }
 
+// drawButton: botao com contorno duplo (escuro por fora, claro por dentro) e brilho na metade de cima.
 func drawButton(img *image.RGBA, r image.Rectangle, label string, enabled, hover, down bool) {
-	top, bot, border := rgb{44, 86, 130, 255}, rgb{20, 46, 80, 255}, rgb{128, 170, 214, 255}
-	tc := rgb{255, 255, 255, 255}
+	edge, top, bot := rgb{R: 104, G: 148, B: 190, A: 255}, rgb{R: 30, G: 78, B: 122, A: 255}, rgb{R: 14, G: 44, B: 76, A: 255}
+	tc := rgb{R: 238, G: 244, B: 250, A: 255}
 	switch {
 	case !enabled:
-		top, bot, border, tc = rgb{30, 44, 62, 255}, rgb{22, 32, 46, 255}, rgb{70, 88, 112, 255}, rgb{120, 136, 156, 255}
+		edge, top, bot, tc = rgb{R: 62, G: 84, B: 108, A: 255}, rgb{R: 22, G: 40, B: 60, A: 255}, rgb{R: 14, G: 26, B: 42, A: 255}, rgb{R: 112, G: 128, B: 148, A: 255}
 	case down:
-		top, bot = rgb{18, 40, 70, 255}, rgb{30, 62, 104, 255}
+		top, bot = rgb{R: 12, G: 36, B: 62, A: 255}, rgb{R: 22, G: 58, B: 96, A: 255}
 	case hover:
-		top, bot, border = rgb{66, 120, 178, 255}, rgb{32, 70, 116, 255}, rgb{180, 216, 255, 255}
+		edge, top, bot = rgb{R: 170, G: 214, B: 250, A: 255}, rgb{R: 44, G: 100, B: 152, A: 255}, rgb{R: 20, G: 58, B: 96, A: 255}
 	}
-	box(img, r, 5, border, top, bot)
-	drawText(img, label, (r.Min.X+r.Max.X)/2, r.Min.Y+20, face(false, 14), tc, 1)
+	fillRR(img, r.Inset(-1), 6, solid(rgb{R: 3, G: 10, B: 20, A: 255}))
+	fillRR(img, r, 5, solid(edge))
+	in := r.Inset(1)
+	fillRR(img, in, 4, func(_, y int) rgb {
+		t := float64(y-in.Min.Y) / float64(in.Dy())
+		if t < .5 {
+			return lerp(top, rgb{R: top.R - 6, G: top.G - 10, B: top.B - 10, A: 255}, t*2)
+		}
+		return lerp(rgb{R: bot.R + 6, G: bot.G + 8, B: bot.B + 10, A: 255}, bot, (t-.5)*2)
+	})
+	for x := in.Min.X + 3; x < in.Max.X-3; x++ {
+		blend(img, x, in.Min.Y+1, rgb{R: 255, G: 255, B: 255, A: 255}, .16)
+	}
+	drawText(img, label, (r.Min.X+r.Max.X)/2, r.Min.Y+18, face(true, 13), tc, 1)
 }
 
 func drawPlay(img *image.RGBA, s State) {
@@ -412,20 +435,32 @@ func drawPlay(img *image.RGBA, s State) {
 			}
 			var c rgb
 			switch {
-			case d > r-6: // aro de bronze
-				c = lerp(rgb{214, 184, 120, 255}, rgb{96, 74, 40, 255}, (float64(y)-(cy-r))/(2*r))
+			case d > r-2: // aro externo escuro
+				c = rgb{R: 34, G: 27, B: 14, A: 255}
+			case d > r-7: // aro de bronze
+				c = lerp(rgb{R: 188, G: 164, B: 98, A: 255}, rgb{R: 82, G: 66, B: 34, A: 255}, (float64(y)-(cy-r))/(2*r))
+			case d > r-9: // sulco escuro entre o aro e a esfera
+				c = rgb{R: 30, G: 20, B: 10, A: 255}
 			default:
-				hx, hy := cx-r*.25, cy-r*.4
-				t := clamp(math.Hypot(float64(x)-hx, float64(y)-hy)/(r*1.3), 0, 1)
-				hi, lo := rgb{236, 70, 62, 255}, rgb{108, 12, 14, 255}
+				hx, hy := cx-r*.22, cy-r*.42
+				t := clamp(math.Hypot(float64(x)-hx, float64(y)-hy)/(r*1.25), 0, 1)
+				hi, lo := rgb{R: 214, G: 52, B: 54, A: 255}, rgb{R: 92, G: 8, B: 12, A: 255}
 				if !enabled {
-					hi, lo = rgb{110, 112, 118, 255}, rgb{48, 50, 56, 255}
+					hi, lo = rgb{R: 112, G: 114, B: 120, A: 255}, rgb{R: 44, G: 46, B: 52, A: 255}
 				} else if s.Down == Play {
-					hi, lo = rgb{190, 44, 40, 255}, rgb{80, 8, 10, 255}
+					hi, lo = rgb{R: 170, G: 36, B: 38, A: 255}, rgb{R: 70, G: 6, B: 8, A: 255}
 				} else if s.Hover == Play {
-					hi, lo = rgb{255, 104, 92, 255}, rgb{140, 20, 22, 255}
+					hi, lo = rgb{R: 240, G: 86, B: 78, A: 255}, rgb{R: 120, G: 16, B: 18, A: 255}
 				}
 				c = lerp(hi, lo, t)
+				// quadriculado fino, como o desenho da esfera do atualizador classico
+				if (x%11 == 0 || y%11 == 0) && enabled {
+					c = lerp(c, rgb{R: 255, G: 150, B: 140, A: 255}, .14)
+				}
+				// brilho de vidro na metade de cima
+				if gy := (float64(y) - (cy - r + 9)) / (r * .9); gy >= 0 && gy < 1 {
+					c = lerp(c, rgb{R: 255, G: 255, B: 255, A: 255}, .10*(1-gy))
+				}
 			}
 			blend(img, x, y, c, clamp(r+.5-d, 0, 1))
 		}
@@ -434,13 +469,13 @@ func drawPlay(img *image.RGBA, s State) {
 	if label == "" {
 		label = "JOGAR"
 	}
-	fc := face(true, 19)
-	drawText(img, label, playC.X+1, playC.Y+8, fc, rgb{60, 0, 0, 160}, 1)
-	c := rgb{255, 255, 255, 255}
+	fc := face(false, 22)
+	drawText(img, label, playC.X+1, playC.Y+9, fc, rgb{R: 60, G: 0, B: 0, A: 150}, 1)
+	c := rgb{R: 255, G: 255, B: 255, A: 255}
 	if !enabled {
-		c = rgb{170, 176, 186, 255}
+		c = rgb{R: 176, G: 182, B: 192, A: 255}
 	}
-	drawText(img, label, playC.X, playC.Y+7, fc, c, 1)
+	drawText(img, label, playC.X, playC.Y+8, fc, c, 1)
 }
 
 // Render monta o quadro atual.
@@ -450,9 +485,9 @@ func Render(s State) *image.RGBA {
 	copy(img.Pix, static.Pix)
 
 	// logo: no centro da janela; sobe para dar lugar ao cartao quando ha noticias
-	ly := 196
+	ly := 232
 	if len(s.News) > 0 {
-		ly = 128
+		ly = 84
 	}
 	drawLogo(img, ly)
 	drawNews(img, s)
@@ -478,17 +513,17 @@ func Render(s State) *image.RGBA {
 		col = cTextOK
 	}
 	fc := face(false, 14)
-	lines := wrap(s.Status, fc, 430, 2)
-	y0 := rPanel.Min.Y + 28
+	lines := wrap(s.Status, fc, barX1-barX0-20, 2)
+	y0 := rPanel.Min.Y + 26
 	if len(lines) > 1 {
-		y0 = rPanel.Min.Y + 19
+		y0 = rPanel.Min.Y + 17
 	}
 	for i, ln := range lines {
-		drawText(img, ln, 405, y0+i*17, fc, col, 1)
+		drawText(img, ln, (barX0+barX1)/2, y0+i*16, fc, col, 1)
 	}
 
-	drawBar(img, rPanel.Min.Y+46, s.File, s.Tick)
-	drawBar(img, rPanel.Min.Y+70, s.Total, s.Tick)
+	drawBar(img, barY1(), s.File, s.Tick)
+	drawBar(img, barY2(), s.Total, s.Tick)
 
 	enabled := !s.Busy
 	drawButton(img, rCheck, "Verificar arquivos", enabled, s.Hover == Check, s.Down == Check)
