@@ -21,16 +21,17 @@ import (
 func main() {
 	system := flag.String("system", "System", "pasta System aprovada")
 	out := flag.String("out", "patch", "pasta de saida (sera criada/limpa)")
+	tex := flag.String("systextures", "", "opcional: pasta com arquivos .utx que vao para a SysTextures do jogador (ex.: AkamanahUI.utx)")
 	flag.Parse()
 
 	ignore := config.Default().IgnoreFiles
-	if err := run(*system, *out, ignore); err != nil {
+	if err := run(*system, *tex, *out, ignore); err != nil {
 		fmt.Fprintln(os.Stderr, "erro:", err)
 		os.Exit(1)
 	}
 }
 
-func run(system, out string, ignore []string) error {
+func run(system, tex, out string, ignore []string) error {
 	if st, err := os.Stat(system); err != nil || !st.IsDir() {
 		return fmt.Errorf("pasta System nao encontrada: %s", system)
 	}
@@ -64,7 +65,37 @@ func run(system, out string, ignore []string) error {
 	if err != nil {
 		return err
 	}
-	sort.Slice(m.Files, func(i, j int) bool { return m.Files[i].Path < m.Files[j].Path })
+	if tex != "" {
+		err := filepath.WalkDir(tex, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			rel, _ := filepath.Rel(tex, p)
+			rel = filepath.ToSlash(rel)
+			if !strings.EqualFold(filepath.Ext(rel), ".utx") {
+				return nil
+			}
+			if err := patch.ValidPath(rel); err != nil {
+				return err
+			}
+			h, err := patch.HashFile(p)
+			if err != nil {
+				return err
+			}
+			st, _ := d.Info()
+			m.Files = append(m.Files, patch.Entry{Path: rel, Size: st.Size(), SHA256: h, Base: patch.BaseSysTextures})
+			return copyFile(p, filepath.Join(out, patch.BaseSysTextures, filepath.FromSlash(rel)))
+		})
+		if err != nil {
+			return err
+		}
+	}
+	sort.Slice(m.Files, func(i, j int) bool {
+		if m.Files[i].Base != m.Files[j].Base {
+			return m.Files[i].Base < m.Files[j].Base
+		}
+		return m.Files[i].Path < m.Files[j].Path
+	})
 	b, _ := json.MarshalIndent(m, "", "  ")
 	if err := os.WriteFile(filepath.Join(out, "manifest.json"), b, 0o644); err != nil {
 		return err

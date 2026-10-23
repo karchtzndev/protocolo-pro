@@ -19,10 +19,31 @@ import (
 
 const maxManifestBytes = 16 << 20
 
+// Pastas de destino de um arquivo do manifesto. Vazio = pasta System (padrao, como sempre foi).
+// "systextures" = pasta SysTextures, ao lado da System (onde ficam os .utx de interface).
+const (
+	BaseSystem      = ""
+	BaseSysTextures = "systextures"
+)
+
 type Entry struct {
 	Path   string `json:"path"`
 	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
+	Base   string `json:"base,omitempty"`
+}
+
+// Dirs liga cada base a uma pasta real no computador do jogador.
+type Dirs struct {
+	System      string
+	SysTextures string
+}
+
+func (d Dirs) path(e Entry) string {
+	if e.Base == BaseSysTextures {
+		return localPath(d.SysTextures, e.Path)
+	}
+	return localPath(d.System, e.Path)
 }
 
 type Manifest struct {
@@ -56,7 +77,10 @@ func (m *Manifest) Validate() error {
 		if _, err := hex.DecodeString(e.SHA256); err != nil {
 			return fmt.Errorf("sha256 invalido: %q", e.Path)
 		}
-		k := strings.ToLower(e.Path)
+		if e.Base != BaseSystem && e.Base != BaseSysTextures {
+			return fmt.Errorf("base invalida em %q: %q", e.Path, e.Base)
+		}
+		k := e.Base + "|" + strings.ToLower(e.Path)
 		if seen[k] {
 			return fmt.Errorf("caminho duplicado: %q", e.Path)
 		}
@@ -127,16 +151,16 @@ func Ignored(rel string, ignore []string) bool {
 
 // Diff devolve as entradas ausentes ou diferentes no disco.
 // onCheck e chamado a cada arquivo verificado (pode ser nil).
-func Diff(root string, m *Manifest, ignore []string, onCheck func(done, total int)) ([]Entry, error) {
+func Diff(dirs Dirs, m *Manifest, ignore []string, onCheck func(done, total int)) ([]Entry, error) {
 	var out []Entry
 	for i, e := range m.Files {
 		if onCheck != nil {
 			onCheck(i, len(m.Files))
 		}
-		if Ignored(e.Path, ignore) {
+		if e.Base == BaseSystem && Ignored(e.Path, ignore) {
 			continue
 		}
-		lp := localPath(root, e.Path)
+		lp := dirs.path(e)
 		st, err := os.Stat(lp)
 		if err != nil || st.IsDir() || st.Size() != e.Size {
 			out = append(out, e)
@@ -150,7 +174,11 @@ func Diff(root string, m *Manifest, ignore []string, onCheck func(done, total in
 	return out, nil
 }
 
-func fileURL(base, rel string) string {
+func fileURL(base string, e Entry) string {
+	rel := e.Path
+	if e.Base == BaseSysTextures {
+		rel = BaseSysTextures + "/" + rel
+	}
 	segs := strings.Split(rel, "/")
 	for i, s := range segs {
 		segs[i] = url.PathEscape(s)
@@ -159,11 +187,11 @@ func fileURL(base, rel string) string {
 }
 
 // Download baixa e confere um arquivo; so substitui o original se o hash bater.
-func Download(ctx context.Context, c *http.Client, baseURL, root string, e Entry, onBytes func(n int64)) error {
+func Download(ctx context.Context, c *http.Client, baseURL string, dirs Dirs, e Entry, onBytes func(n int64)) error {
 	if err := requireHTTPS(baseURL); err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL(baseURL, e.Path), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL(baseURL, e), nil)
 	if err != nil {
 		return err
 	}
@@ -175,7 +203,7 @@ func Download(ctx context.Context, c *http.Client, baseURL, root string, e Entry
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%s: HTTP %d", e.Path, resp.StatusCode)
 	}
-	dst := localPath(root, e.Path)
+	dst := dirs.path(e)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}

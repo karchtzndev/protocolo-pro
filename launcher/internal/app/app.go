@@ -30,6 +30,10 @@ type App struct {
 
 func (a *App) SystemPath() string { return filepath.Join(a.Root, a.Cfg.SystemDir) }
 
+func (a *App) dirs() patch.Dirs {
+	return patch.Dirs{System: a.SystemPath(), SysTextures: filepath.Join(a.Root, "SysTextures")}
+}
+
 // Progress: texto + fracao do arquivo atual e do total (0..1; <0 = indeterminado).
 type Progress func(text string, file, total float64)
 
@@ -43,7 +47,7 @@ func (a *App) Update(ctx context.Context, prog Progress) error {
 		return fmt.Errorf("nao foi possivel obter a lista de atualizacao: %w", err)
 	}
 	a.Log.Printf("manifesto com %d arquivos", len(m.Files))
-	todo, err := patch.Diff(a.SystemPath(), m, a.Cfg.IgnoreFiles, func(i, n int) {
+	todo, err := patch.Diff(a.dirs(), m, a.Cfg.IgnoreFiles, func(i, n int) {
 		prog(fmt.Sprintf("Verificando arquivos (%d/%d)", i+1, n), -1, float64(i)/float64(n))
 	})
 	if err != nil {
@@ -63,7 +67,7 @@ func (a *App) Update(ctx context.Context, prog Progress) error {
 		var fileDone int64
 		label := fmt.Sprintf("Baixando %s (%d/%d)", e.Path, i+1, len(todo))
 		prog(label, 0, float64(done)/float64(max(total, 1)))
-		err := patch.Download(ctx, c, a.Cfg.PatchBaseURL, a.SystemPath(), e, func(n int64) {
+		err := patch.Download(ctx, c, a.Cfg.PatchBaseURL, a.dirs(), e, func(n int64) {
 			done += n
 			fileDone += n
 			prog(label, float64(fileDone)/float64(max(e.Size, 1)), float64(done)/float64(max(total, 1)))
