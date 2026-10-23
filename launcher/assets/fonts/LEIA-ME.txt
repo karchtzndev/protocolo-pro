@@ -1,0 +1,3 @@
+Cinzel Bold - Copyright 2012 The Cinzel Project Authors. Licenca: SIL Open Font License 1.1
+(https://openfontlicense.org). Usada apenas para gerar a logo do launcher (cmd/gerar-logo).
+Liberation Serif Bold (internal/ui/assets/serif-bold.ttf) tambem e SIL OFL 1.1.
