@@ -54,9 +54,11 @@ func paintShapes(shapes []shape, outline rgb) *image.RGBA {
 			for x := 0; x < CursorSize; x++ {
 				px, py := float64(x)+.5, float64(y)+.5
 				d := polySDF(px, py, s.pts)
-				blendStraight(img, x, y, outline, clamp(1.2-math.Abs(d-.3), 0, 1))
-				if d < -.5 {
-					blendStraight(img, x, y, s.fill(px, py), clamp(-d-.5, 0, 1))
+				if d <= .45 { // contorno de pixel art: sem suavizacao
+					blendStraight(img, x, y, outline, 1)
+				}
+				if d <= -.95 {
+					blendStraight(img, x, y, s.fill(px, py), 1)
 				}
 			}
 		}
@@ -68,20 +70,20 @@ func solidFill(c rgb) func(px, py float64) rgb { return func(float64, float64) r
 
 // CursorImage: ponteiro normal (andar e clicar) - cunha de aco facetada, ponta em cima a esquerda.
 func CursorImage() *image.RGBA {
-	light, dark := rgb{R: 238, G: 240, B: 246, A: 255}, rgb{R: 122, G: 130, B: 146, A: 255}
+	light, dark := rgb{R: 214, G: 204, B: 184, A: 255}, rgb{R: 118, G: 106, B: 86, A: 255}
 	upper := []pt{{2, 2}, {23, 13}, {14, 15}}
 	lower := []pt{{2, 2}, {14, 15}, {12, 27}}
 	whole := []pt{{2, 2}, {23, 13}, {14, 15}, {12, 27}}
 	grad := func(c rgb) func(px, py float64) rgb {
 		return func(px, py float64) rgb {
-			return lerp(c, rgb{R: 70, G: 76, B: 90, A: 255}, clamp((px+py-4)/46, 0, 1)*.55)
+			return lerp(c, rgb{R: 74, G: 64, B: 48, A: 255}, clamp((px+py-4)/46, 0, 1)*.5)
 		}
 	}
 	return paintShapes([]shape{
-		{whole, solidFill(rgb{R: 60, G: 66, B: 80, A: 255})},
+		{whole, solidFill(rgb{R: 70, G: 60, B: 46, A: 255})},
 		{upper, grad(light)},
 		{lower, grad(dark)},
-	}, rgb{R: 20, G: 22, B: 30, A: 255})
+	}, rgb{R: 28, G: 22, B: 16, A: 255})
 }
 
 // rot gira/translada pontos locais (eixo x = direcao da lamina) para o cursor: ponta em (2,2), descendo a 45 graus.
@@ -104,25 +106,25 @@ func CursorClickImage() *image.RGBA {
 	glove := rot([]pt{{19, -5}, {25, -6.5}, {30, -3.8}, {30, 3.8}, {25, 6.5}, {19, 5}})
 	steel := func(base rgb) func(px, py float64) rgb {
 		return func(px, py float64) rgb {
-			return lerp(base, rgb{R: 60, G: 66, B: 80, A: 255}, clamp((px+py-4)/50, 0, 1)*.5)
+			return lerp(base, rgb{R: 70, G: 60, B: 46, A: 255}, clamp((px+py-4)/50, 0, 1)*.5)
 		}
 	}
 	knuckles := func(px, py float64) rgb { // listras claras de articulacao da manopla
-		base := rgb{R: 136, G: 142, B: 156, A: 255}
+		base := rgb{R: 150, G: 138, B: 116, A: 255}
 		u := (px - 2 + py - 2) / math.Sqrt2 // distancia ao longo do eixo
 		if v := math.Mod(u-18, 4); v < 1 && u > 19 {
-			return lerp(base, rgb{R: 240, G: 242, B: 248, A: 255}, .55)
+			return lerp(base, rgb{R: 226, G: 216, B: 192, A: 255}, .6)
 		}
-		return lerp(base, rgb{R: 70, G: 76, B: 90, A: 255}, clamp((px+py-30)/30, 0, 1)*.5)
+		return lerp(base, rgb{R: 78, G: 68, B: 52, A: 255}, clamp((px+py-30)/30, 0, 1)*.55)
 	}
 	return paintShapes([]shape{
-		{bladeAll, solidFill(rgb{R: 70, G: 76, B: 90, A: 255})},
-		{blade1, steel(rgb{R: 240, G: 242, B: 248, A: 255})},
-		{blade2, steel(rgb{R: 150, G: 158, B: 174, A: 255})},
-		{guard, solidFill(rgb{R: 188, G: 160, B: 104, A: 255})},
-		{grip, solidFill(rgb{R: 74, G: 54, B: 36, A: 255})},
+		{bladeAll, solidFill(rgb{R: 74, G: 64, B: 48, A: 255})},
+		{blade1, steel(rgb{R: 232, G: 224, B: 206, A: 255})},
+		{blade2, steel(rgb{R: 150, G: 138, B: 116, A: 255})},
+		{guard, solidFill(rgb{R: 176, G: 144, B: 86, A: 255})},
+		{grip, solidFill(rgb{R: 88, G: 62, B: 40, A: 255})},
 		{glove, knuckles},
-	}, rgb{R: 20, G: 22, B: 30, A: 255})
+	}, rgb{R: 28, G: 22, B: 16, A: 255})
 }
 
 // blendStraight mistura c sobre o pixel mantendo alfa (RGBA "reto", nao pre-multiplicado).
