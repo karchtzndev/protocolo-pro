@@ -21,6 +21,13 @@ func main() {
 		"3-pronto":        {Status: "Cliente atualizado.", Kind: ui.StatusOK, File: 1, Total: 1, CanPlay: true, Hover: ui.Play},
 		"4-erro-internet": {Status: "Sem conexao com a internet ou com o servidor de atualizacao. Verifique sua internet e clique em Verificar arquivos.", Kind: ui.StatusError, CanPlay: false, Hover: ui.Check},
 	}
+	news := []ui.NewsItem{
+		{Kind: "aviso", Title: "Abertura oficial em 22/12", Text: "O servidor abre dia 22 de dezembro de 2026 às 20h (horário de Brasília). Crie sua conta e baixe o cliente antes.", Date: "22/10/2026", URL: "https://l2akamanah.com.br"},
+		{Kind: "recompensa", Title: "Caixa de Veterano do Open Beta", Text: "Quem fizer 10 lutas de Olimpíada durante o beta recebe a Caixa de Veterano na abertura, uma vez por conta."},
+		{Kind: "correcao", Title: "Corrigido: arquivos corrompidos", Text: "Resolvida a mensagem 'Files are corrupted' ao abrir o jogo."},
+	}
+	cases["5-noticias"] = ui.State{Status: "Cliente atualizado. Clique em JOGAR.", Kind: ui.StatusOK, File: 1, Total: 1, CanPlay: true, News: news, NewsIdx: 0, Hover: ui.None}
+	cases["6-noticias-2"] = ui.State{Status: "Baixando Engine.dll (12/31)", File: .42, Total: .27, Busy: true, News: news, NewsIdx: 1, Tick: 9}
 	for n, s := range cases {
 		f, _ := os.Create(filepath.Join(out, n+".png"))
 		png.Encode(f, ui.Render(s))

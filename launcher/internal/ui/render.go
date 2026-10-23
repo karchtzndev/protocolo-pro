@@ -20,6 +20,11 @@ import (
 //go:embed assets/logo.png
 var logoPNG []byte
 
+// Liberation Serif Bold (SIL Open Font License 1.1): titulos no estilo do atualizador classico.
+//
+//go:embed assets/serif-bold.ttf
+var serifTTF []byte
+
 type rgb = color.NRGBA
 
 var (
@@ -39,12 +44,14 @@ var (
 	faces   = map[string]font.Face{}
 	regular *opentype.Font
 	bold    *opentype.Font
+	serif   *opentype.Font
 )
 
 func initAssets() {
 	once.Do(func() {
 		regular, _ = opentype.Parse(goregular.TTF)
 		bold, _ = opentype.Parse(gobold.TTF)
+		serif, _ = opentype.Parse(serifTTF)
 		src, err := png.Decode(bytes.NewReader(logoPNG))
 		if err == nil {
 			w := 430
@@ -69,6 +76,19 @@ func face(b bool, px float64) font.Face {
 		return fc
 	}
 	fc, _ := opentype.NewFace(f, &opentype.FaceOptions{Size: px, DPI: 72, Hinting: font.HintingFull})
+	faces[key] = fc
+	return fc
+}
+
+// serifFace: fonte de titulo (serifada, negrito).
+func serifFace(px float64) font.Face {
+	key := "s" + string(rune(int(px*10)))
+	faceMu.Lock()
+	defer faceMu.Unlock()
+	if fc, ok := faces[key]; ok {
+		return fc
+	}
+	fc, _ := opentype.NewFace(serif, &opentype.FaceOptions{Size: px, DPI: 72, Hinting: font.HintingFull})
 	faces[key] = fc
 	return fc
 }
@@ -147,70 +167,194 @@ func box(img *image.RGBA, r image.Rectangle, rad float64, border rgb, top, bot r
 	fillRR(img, in, math.Max(rad-1, 0), vgrad(in, top, bot))
 }
 
+func hash2(x, y int) float64 {
+	h := uint32(x)*374761393 + uint32(y)*668265263
+	h = (h ^ (h >> 13)) * 1274126177
+	return float64((h^(h>>16))&0xffff) / 65535
+}
+
+// cloud: ruido suave (soma de senoides) em -1..1, para a nevoa do fundo.
+func cloud(x, y float64) float64 {
+	return .5*math.Sin(x/90+math.Sin(y/57)*2.1) + .3*math.Sin((x+y)/47+1.3) + .2*math.Sin(x/27-y/35+.6)
+}
+
+func arc(img *image.RGBA, cx, cy, r float64, a0, a1 float64, w float64, c rgb) {
+	for a := a0; a <= a1; a += .01 {
+		for dw := -w / 2; dw <= w/2; dw += .5 {
+			x, y := cx+(r+dw)*math.Cos(a), cy+(r+dw)*math.Sin(a)
+			blend(img, int(x), int(y), c, 1)
+		}
+	}
+}
+
 func buildStatic() *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, W, H))
-	// moldura de bronze
-	fillRR(img, img.Rect, 6, func(_, y int) rgb { return lerp(rgb{138, 116, 72, 255}, rgb{70, 58, 36, 255}, float64(y)/H) })
+	// moldura de bronze com chanfro
+	fillRR(img, img.Rect, 6, func(_, y int) rgb { return lerp(rgb{150, 124, 78, 255}, rgb{66, 54, 34, 255}, float64(y)/H) })
 	inner := img.Rect.Inset(5)
-	// fundo azul com brilho central e vinheta
-	cx, cy := float64(W)/2, 300.0
+	for x := 3; x < W-3; x++ {
+		blend(img, x, 2, rgb{214, 188, 130, 255}, .6)
+		blend(img, x, H-3, rgb{30, 24, 14, 255}, .6)
+	}
+	for y := 3; y < H-3; y++ {
+		blend(img, 2, y, rgb{190, 164, 108, 255}, .5)
+		blend(img, W-3, y, rgb{30, 24, 14, 255}, .5)
+	}
+	// fundo azul: nevoa, brilho horizontal na parte de cima e vinheta
+	cx, cy := float64(W)/2, 210.0
 	for y := inner.Min.Y; y < inner.Max.Y; y++ {
 		for x := inner.Min.X; x < inner.Max.X; x++ {
 			ty := float64(y-inner.Min.Y) / float64(inner.Dy())
-			base := lerp(rgb{18, 40, 70, 255}, rgb{14, 30, 56, 255}, ty)
-			g := clamp(1-math.Hypot((float64(x)-cx)/480, (float64(y)-cy)/330), 0, 1)
-			c := lerp(base, rgb{58, 102, 160, 255}, g*g*.85)
-			v := clamp(math.Hypot((float64(x)-cx)/620, (float64(y)-cy)/520), 0, 1)
-			c = lerp(c, rgb{6, 14, 28, 255}, v*v*.55)
+			base := lerp(rgb{24, 52, 90, 255}, rgb{12, 26, 48, 255}, math.Pow(ty, .8))
+			g := clamp(1-math.Hypot((float64(x)-cx)/560, (float64(y)-cy)/250), 0, 1)
+			c := lerp(base, rgb{52, 96, 154, 255}, g*g*.8)
+			n := cloud(float64(x), float64(y))
+			c = lerp(c, rgb{70, 112, 168, 255}, clamp(n*.5+.1, 0, .35)*(1-ty))
+			c = lerp(c, rgb{6, 14, 28, 255}, clamp(-n*.5, 0, .25)*.6)
+			v := clamp(math.Hypot((float64(x)-cx)/640, (float64(y)-cy)/560), 0, 1)
+			c = lerp(c, rgb{4, 10, 22, 255}, v*v*.5)
 			blend(img, x, y, c, 1)
 		}
 	}
-	// "muro" escuro com listras suaves, como no atualizador classico
-	for y := H - 215; y < H-135; y++ {
-		fade := math.Sin(float64(y-(H-215)) / 80 * math.Pi)
+	// muro de pedra escuro, com veios verticais, logo acima do painel
+	y0, y1 := H-218, H-132
+	for y := y0; y < y1; y++ {
+		ramp := math.Pow(float64(y-y0)/float64(y1-y0), 1.4)
 		for x := inner.Min.X; x < inner.Max.X; x++ {
-			n := float64((x*73+(x/7)*131)%17) / 17
-			blend(img, x, y, rgb{4, 10, 20, 255}, clamp(.25+.35*n, 0, 1)*fade)
-		}
-	}
-	// logo + reflexo
-	if logo != nil {
-		lw, lh := logo.Bounds().Dx(), logo.Bounds().Dy()
-		lx, ly := (W-lw)/2, 190
-		draw.Draw(img, image.Rect(lx, ly, lx+lw, ly+lh), logo, image.Point{}, draw.Over)
-		for i := 0; i < lh/2; i++ {
-			a := .22 * (1 - float64(i)/float64(lh/2))
-			for x := 0; x < lw; x++ {
-				s := logo.RGBAAt(x, lh-1-i)
-				if s.A > 0 {
-					blend(img, lx+x, ly+lh+4+i, rgb{s.R, s.G, s.B, 255}, a*float64(s.A)/255)
-				}
+			streak := hash2(x/2, 7)*.5 + hash2(x/9, 3)*.5
+			c := lerp(rgb{8, 16, 30, 255}, rgb{30, 44, 66, 255}, streak*.7)
+			blend(img, x, y, c, clamp(.15+.8*ramp, 0, .92))
+			if hash2(x/3, y/5) > .93 {
+				blend(img, x, y, rgb{96, 120, 150, 255}, .08*ramp)
 			}
 		}
 	}
 	// barra de titulo
 	title := image.Rect(5, 5, W-5, 36)
 	for y := title.Min.Y; y < title.Max.Y; y++ {
-		c := lerp(rgb{64, 52, 34, 255}, rgb{34, 27, 18, 255}, float64(y-title.Min.Y)/float64(title.Dy()))
+		c := lerp(rgb{74, 60, 40, 255}, rgb{34, 27, 18, 255}, float64(y-title.Min.Y)/float64(title.Dy()))
 		for x := title.Min.X; x < title.Max.X; x++ {
 			blend(img, x, y, c, 1)
 		}
 	}
 	for x := title.Min.X; x < title.Max.X; x++ {
-		blend(img, x, title.Max.Y, rgb{20, 15, 9, 255}, 1)
-		blend(img, x, title.Max.Y+1, rgb{110, 92, 58, 255}, .6)
+		blend(img, x, title.Min.Y, rgb{150, 126, 84, 255}, .7)
+		blend(img, x, title.Max.Y, rgb{16, 12, 7, 255}, 1)
+		blend(img, x, title.Max.Y+1, rgb{120, 100, 64, 255}, .5)
 	}
-	drawText(img, "L2 Akamanah - Atualizador", 22, 26, face(false, 13), cGoldDim, 0)
-	pill := image.Rect(W/2-84, 3, W/2+84, 34)
-	box(img, pill, 10, rgb{150, 124, 76, 255}, rgb{70, 56, 34, 255}, rgb{38, 30, 20, 255})
-	drawText(img, "L2 AKAMANAH", W/2, 25, face(true, 15), cGold, 1)
+	drawText(img, "L2 Akamanah - Atualizador", 22, 26, face(false, 13), rgb{206, 190, 150, 255}, 0)
+	// placa central ornamentada
+	plate := image.Rect(W/2-120, 1, W/2+120, 40)
+	box(img, plate, 12, rgb{176, 148, 92, 255}, rgb{86, 68, 42, 255}, rgb{36, 28, 18, 255})
+	box(img, plate.Inset(4), 9, rgb{104, 84, 52, 255}, rgb{58, 46, 30, 255}, rgb{28, 22, 14, 255})
+	for side := -1; side <= 1; side += 2 {
+		sx := W/2 + side*(120+2)
+		for d := 0; d < 9; d++ {
+			for e := -d; e <= d; e++ {
+				blend(img, sx+side*d, 20+e, rgb{150, 124, 78, 255}, .9)
+			}
+		}
+	}
+	drawText(img, "L2 AKAMANAH", W/2+1, 28, serifFace(17), rgb{20, 14, 8, 200}, 1)
+	drawText(img, "L2 AKAMANAH", W/2, 27, serifFace(17), cGold, 1)
+	// ornamentos nos cantos de baixo
+	for _, c := range []struct{ x, y, a0 float64 }{{16, H - 16, -math.Pi / 2}, {W - 16, H - 16, math.Pi}} {
+		arc(img, c.x, c.y, 26, c.a0, c.a0+math.Pi/2, 3, rgb{176, 148, 92, 255})
+		arc(img, c.x, c.y, 18, c.a0, c.a0+math.Pi/2, 1.5, rgb{110, 90, 56, 255})
+	}
 	// painel inferior
-	box(img, rPanel, 6, rgb{70, 104, 150, 255}, rgb{19, 40, 70, 245}, rgb{11, 26, 48, 250})
+	box(img, rPanel, 5, rgb{96, 132, 180, 255}, rgb{22, 46, 80, 244}, rgb{10, 24, 46, 250})
 	fc := face(false, 14)
-	drawText(img, "Arquivo atual", 60, rPanel.Min.Y+55, fc, cTextDim, 0)
-	drawText(img, "Progresso total", 60, rPanel.Min.Y+79, fc, cTextDim, 0)
-	drawText(img, "L2 Akamanah - servidor privado, sem vinculo com a NCSOFT", W/2, H-12, face(false, 11), rgb{88, 116, 152, 255}, 1)
+	drawText(img, "Arquivo atual", 60, rPanel.Min.Y+55, fc, rgb{142, 170, 204, 255}, 0)
+	drawText(img, "Progresso total", 60, rPanel.Min.Y+79, fc, rgb{142, 170, 204, 255}, 0)
+	drawText(img, "L2 Akamanah - servidor privado, sem vinculo com a NCSOFT", W/2, H-12, serifFace(12), rgb{110, 128, 152, 255}, 1)
 	return img
+}
+
+// drawLogo desenha a logo com um reflexo suave embaixo, centralizada em ly.
+func drawLogo(img *image.RGBA, ly int) {
+	if logo == nil {
+		return
+	}
+	lw, lh := logo.Bounds().Dx(), logo.Bounds().Dy()
+	lx := (W - lw) / 2
+	draw.Draw(img, image.Rect(lx, ly, lx+lw, ly+lh), logo, image.Point{}, draw.Over)
+	for i := 0; i < lh/2; i++ {
+		a := .26 * math.Pow(1-float64(i)/float64(lh/2), 1.6)
+		for x := 0; x < lw; x++ {
+			s := logo.RGBAAt(x, lh-1-i)
+			if s.A > 0 {
+				blend(img, lx+x, ly+lh+3+i, rgb{s.R, s.G, s.B, 255}, a*float64(s.A)/255)
+			}
+		}
+	}
+}
+
+func kindStyle(kind string) (label string, c rgb) {
+	switch kind {
+	case "aviso":
+		return "AVISO", rgb{201, 162, 74, 255}
+	case "recompensa":
+		return "RECOMPENSA", rgb{90, 168, 106, 255}
+	case "correcao":
+		return "CORREÇÃO", rgb{90, 143, 217, 255}
+	}
+	return "NOVIDADE", rgb{217, 120, 74, 255}
+}
+
+// drawNews: cartao do meio com a noticia atual (titulo, texto, data e indicadores).
+func drawNews(img *image.RGBA, s State) {
+	if len(s.News) == 0 {
+		return
+	}
+	cur := ((s.NewsIdx % len(s.News)) + len(s.News)) % len(s.News)
+	n := s.News[cur]
+	r := rNews
+	border := rgb{98, 134, 182, 255}
+	if s.Hover == NewsCard && n.URL != "" {
+		border = rgb{190, 156, 90, 255}
+	}
+	box(img, r, 6, border, rgb{10, 24, 46, 224}, rgb{7, 16, 32, 230})
+	label, c := kindStyle(n.Kind)
+	cf := face(true, 11)
+	cw := textWidth(label, cf) + 16
+	chip := image.Rect(r.Min.X+14, r.Min.Y+12, r.Min.X+14+cw, r.Min.Y+30)
+	fillRR(img, chip, 4, solid(rgb{c.R, c.G, c.B, 110}))
+	drawText(img, label, chip.Min.X+8, chip.Min.Y+13, cf, rgb{255, 255, 255, 255}, 0)
+	title := n.Title
+	tf := serifFace(18)
+	for textWidth(title, tf) > r.Dx()-cw-130 && len(title) > 4 {
+		title = title[:len(title)-4] + "..."
+	}
+	drawText(img, title, chip.Max.X+12, r.Min.Y+28, tf, cGold, 0)
+	if n.Date != "" {
+		drawText(img, n.Date, r.Max.X-14, r.Min.Y+27, face(false, 12), rgb{120, 146, 180, 255}, 2)
+	}
+	body := face(false, 14)
+	for i, ln := range wrap(n.Text, body, r.Dx()-32, 3) {
+		drawText(img, ln, r.Min.X+16, r.Min.Y+56+i*19, body, cText, 0)
+	}
+	if len(s.News) > 1 {
+		x0 := r.Min.X + r.Dx()/2 - (len(s.News)*14)/2
+		for i := range s.News {
+			col := rgb{70, 96, 132, 255}
+			if i == cur {
+				col = cGold
+			}
+			fillRR(img, image.Rect(x0+i*14, r.Max.Y-14, x0+i*14+8, r.Max.Y-8), 3, solid(col))
+		}
+		for _, a := range []struct {
+			r  image.Rectangle
+			b  Button
+			ch string
+		}{{rNewsPrev, NewsPrev, "<"}, {rNewsNext, NewsNext, ">"}} {
+			col := rgb{120, 150, 190, 255}
+			if s.Hover == a.b {
+				col = cGold
+			}
+			drawText(img, a.ch, (a.r.Min.X+a.r.Max.X)/2, a.r.Min.Y+27, serifFace(26), col, 1)
+		}
+	}
 }
 
 var barR = image.Rect(190, 0, 620, 0)
@@ -305,6 +449,14 @@ func Render(s State) *image.RGBA {
 	img := image.NewRGBA(static.Rect)
 	copy(img.Pix, static.Pix)
 
+	// logo: no centro da janela; sobe para dar lugar ao cartao quando ha noticias
+	ly := 196
+	if len(s.News) > 0 {
+		ly = 128
+	}
+	drawLogo(img, ly)
+	drawNews(img, s)
+
 	// fechar (X)
 	if s.Hover == Close {
 		fillRR(img, rClose, 4, solid(rgb{170, 40, 36, 255}))
@@ -332,7 +484,7 @@ func Render(s State) *image.RGBA {
 		y0 = rPanel.Min.Y + 19
 	}
 	for i, ln := range lines {
-		drawText(img, ln, 190, y0+i*17, fc, col, 0)
+		drawText(img, ln, 405, y0+i*17, fc, col, 1)
 	}
 
 	drawBar(img, rPanel.Min.Y+46, s.File, s.Tick)

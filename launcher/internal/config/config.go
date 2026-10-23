@@ -8,12 +8,14 @@ import (
 )
 
 type Config struct {
-	ServerName   string   `json:"serverName"`
-	ManifestURL  string   `json:"manifestUrl"`
-	PatchBaseURL string   `json:"patchBaseUrl"`
-	SystemDir    string   `json:"systemDir"`
-	GameExe      string   `json:"gameExe"`
-	GameArgs     []string `json:"gameArgs"`
+	ServerName   string `json:"serverName"`
+	ManifestURL  string `json:"manifestUrl"`
+	PatchBaseURL string `json:"patchBaseUrl"`
+	// Avisos do meio da janela (HTTPS). Vazio = sem noticias.
+	NewsURL   string   `json:"newsUrl"`
+	SystemDir string   `json:"systemDir"`
+	GameExe   string   `json:"gameExe"`
+	GameArgs  []string `json:"gameArgs"`
 	// Arquivos do jogador que o patch nunca cria nem substitui.
 	IgnoreFiles   []string `json:"ignoreFiles"`
 	BlacklistFile string   `json:"blacklistFile"`
@@ -33,6 +35,7 @@ func Default() Config {
 		ServerName:    "L2 Akamanah",
 		ManifestURL:   "https://l2akamanah.com.br/patch/manifest.json",
 		PatchBaseURL:  "https://l2akamanah.com.br/patch",
+		NewsURL:       "https://l2akamanah.com.br/patch/news.json",
 		SystemDir:     "System",
 		GameExe:       "l2.exe",
 		IgnoreFiles:   []string{"user.ini", "Option.ini", "chatfilter.ini", "l2.log", "l2Second.log", "CheckGrp.log", "HardWare.ini", "WindowsInfo.ini", "s_info.ini"},

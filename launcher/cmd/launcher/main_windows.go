@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,6 +18,7 @@ import (
 
 	"l2akamanah/launcher/internal/app"
 	"l2akamanah/launcher/internal/config"
+	"l2akamanah/launcher/internal/news"
 	"l2akamanah/launcher/internal/ui"
 )
 
@@ -115,6 +117,34 @@ func main() {
 		}()
 	}
 
+	loadNews := func() {
+		if cfg.NewsURL == "" {
+			return
+		}
+		go func() {
+			cx, cancelNews := context.WithTimeout(ctx, 15*time.Second)
+			defer cancelNews()
+			items, err := news.Fetch(cx, &http.Client{Timeout: 15 * time.Second}, cfg.NewsURL)
+			if err != nil {
+				logger.Printf("noticias: %v", err)
+				return
+			}
+			conv := make([]ui.NewsItem, len(items))
+			for i, it := range items {
+				conv[i] = ui.NewsItem{Kind: it.Kind, Title: it.Title, Text: it.Text, Date: it.Date, URL: it.URL}
+			}
+			update(func(s *ui.State) { s.News, s.NewsIdx = conv, 0 })
+			mw.Synchronize(func() { cw.Invalidate() })
+		}()
+	}
+	step := func(d int) {
+		update(func(s *ui.State) {
+			if n := len(s.News); n > 0 {
+				s.NewsIdx = ((s.NewsIdx+d)%n + n) % n
+			}
+		})
+	}
+
 	act := func(b ui.Button) {
 		switch b {
 		case ui.Close, ui.Exit:
@@ -122,6 +152,20 @@ func main() {
 		case ui.Check:
 			if !snapshot().Busy {
 				runUpdate()
+				loadNews()
+			}
+		case ui.NewsPrev:
+			step(-1)
+		case ui.NewsNext:
+			step(1)
+		case ui.NewsCard:
+			s := snapshot()
+			if len(s.News) > 0 {
+				if u := s.News[s.NewsIdx%len(s.News)].URL; u != "" {
+					verb, _ := windows.UTF16PtrFromString("open")
+					link, _ := windows.UTF16PtrFromString(u)
+					windows.ShellExecute(0, verb, link, nil, nil, windows.SW_SHOWNORMAL)
+				}
 			}
 		case ui.Play:
 			s := snapshot()
@@ -140,7 +184,7 @@ func main() {
 		if button != walk.LeftButton {
 			return
 		}
-		b := ui.HitTest(x, y)
+		b := ui.HitTestState(x, y, len(snapshot().News))
 		if b == ui.TitleBar {
 			win.ReleaseCapture()
 			win.SendMessage(mw.Handle(), win.WM_NCLBUTTONDOWN, win.HTCAPTION, 0)
@@ -156,12 +200,13 @@ func main() {
 		down := snapshot().Down
 		update(func(s *ui.State) { s.Down = ui.None })
 		cw.Invalidate()
-		if down != ui.None && ui.HitTest(x, y) == down {
+		if down != ui.None && ui.HitTestState(x, y, len(snapshot().News)) == down {
 			act(down)
 		}
 	})
 
 	// Passa o mouse (hover) e anima a barra enquanto atualiza.
+	rot := 0
 	go func() {
 		t := time.NewTicker(50 * time.Millisecond)
 		defer t.Stop()
@@ -174,13 +219,21 @@ func main() {
 			var p win.POINT
 			hover := ui.None
 			if win.GetCursorPos(&p) && win.ScreenToClient(cw.Handle(), &p) {
-				hover = ui.HitTest(int(p.X), int(p.Y))
+				hover = ui.HitTestState(int(p.X), int(p.Y), len(snapshot().News))
 				if p.X < 0 || p.Y < 0 || p.X >= ui.W || p.Y >= ui.H {
 					hover = ui.None
 				}
 			}
 			open := a.GameRunning()
 			changed := false
+			rot++
+			if rot >= 160 { // ~8 s
+				rot = 0
+				if hover != ui.NewsCard && hover != ui.NewsPrev && hover != ui.NewsNext {
+					step(1)
+					changed = true
+				}
+			}
 			update(func(s *ui.State) {
 				if s.Hover != hover || s.GameOpen != open {
 					changed = true
@@ -199,6 +252,7 @@ func main() {
 
 	mw.Closing().Attach(func(_ *bool, _ walk.CloseReason) { stop() })
 	runUpdate()
+	loadNews()
 	// Criada sem o declarative, a janela nasce escondida: precisa ser mostrada explicitamente.
 	mw.Show()
 	win.SetForegroundWindow(mw.Handle())
