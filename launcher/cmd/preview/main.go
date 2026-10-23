@@ -3,6 +3,7 @@ package main
 
 import (
 	"image"
+	"image/color"
 	"image/draw"
 	"image/png"
 	"os"
@@ -11,12 +12,31 @@ import (
 	"l2akamanah/launcher/internal/ui"
 )
 
+func cursorSheet(out string) {
+	sheet := image.NewRGBA(image.Rect(0, 0, 4*ui.CursorSize*4+40, ui.CursorSize*4+20))
+	draw.Draw(sheet, sheet.Bounds(), image.NewUniform(color.RGBA{34, 56, 92, 255}), image.Point{}, draw.Src)
+	for i, cur := range []*image.RGBA{ui.CursorImage(), ui.CursorClickImage()} {
+		for y := 0; y < ui.CursorSize*4; y++ {
+			for x := 0; x < ui.CursorSize*4; x++ {
+				p := cur.Pix[cur.PixOffset(x/4, y/4) : cur.PixOffset(x/4, y/4)+4]
+				a := uint32(p[3])
+				bg := sheet.RGBAAt(10+i*(ui.CursorSize*4+20)+x, 10+y)
+				sheet.SetRGBA(10+i*(ui.CursorSize*4+20)+x, 10+y, color.RGBA{uint8((uint32(p[0])*a + uint32(bg.R)*(255-a)) / 255), uint8((uint32(p[1])*a + uint32(bg.G)*(255-a)) / 255), uint8((uint32(p[2])*a + uint32(bg.B)*(255-a)) / 255), 255})
+			}
+		}
+	}
+	f, _ := os.Create(filepath.Join(out, "cursores.png"))
+	png.Encode(f, sheet)
+	f.Close()
+}
+
 func main() {
 	out := "preview"
 	if len(os.Args) > 1 {
 		out = os.Args[1]
 	}
 	os.MkdirAll(out, 0o755)
+	cursorSheet(out)
 	cases := map[string]ui.State{
 		"1-verificando":   {Status: "Verificando arquivos (84/156)", File: -1, Total: .54, Busy: true, Tick: 6},
 		"2-baixando":      {Status: "Baixando Engine.dll (12/31)", File: .42, Total: .27, Busy: true},

@@ -5,20 +5,26 @@ import (
 	"math"
 )
 
-// CursorSize e o tamanho do cursor do launcher (pixels).
+// CursorSize e o tamanho dos cursores do launcher (pixels).
 const CursorSize = 32
 
-// Ponta do ponteiro (ponto ativo do clique).
+// Ponta dos cursores (ponto ativo do clique).
 const (
 	CursorHotX = 2
 	CursorHotY = 2
 )
 
-var arrowPts = []pt{{2, 2}, {2, 25}, {8, 19}, {13, 29}, {17, 27}, {12, 18}, {20, 18}}
+type shape struct {
+	pts  []pt
+	fill func(px, py float64) rgb
+}
 
 func segDist(px, py float64, a, b pt) float64 {
 	dx, dy := b.x-a.x, b.y-a.y
 	l := dx*dx + dy*dy
+	if l == 0 {
+		return math.Hypot(px-a.x, py-a.y)
+	}
 	t := clamp(((px-a.x)*dx+(py-a.y)*dy)/l, 0, 1)
 	return math.Hypot(px-(a.x+t*dx), py-(a.y+t*dy))
 }
@@ -40,31 +46,83 @@ func polySDF(px, py float64, p []pt) float64 {
 	return d
 }
 
-// CursorImage desenha o ponteiro do launcher: seta dourada com contorno escuro e brilho suave,
-// no espirito do ponteiro usado para clicar e andar no jogo (arte propria, nao copiada).
-func CursorImage() *image.RGBA {
+// paintShapes pinta as formas (de tras para frente), cada uma com contorno escuro e preenchimento.
+func paintShapes(shapes []shape, outline rgb) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, CursorSize, CursorSize))
-	for y := 0; y < CursorSize; y++ {
-		for x := 0; x < CursorSize; x++ {
-			px, py := float64(x)+.5, float64(y)+.5
-			d := polySDF(px, py, arrowPts)
-			// brilho externo
-			if d > 0 && d < 3.5 {
-				a := math.Pow(1-d/3.5, 2) * .38
-				blendStraight(img, x, y, rgb{R: 255, G: 226, B: 140, A: 255}, a)
-			}
-			// contorno escuro
-			blendStraight(img, x, y, rgb{R: 38, G: 24, B: 6, A: 255}, clamp(1.15-math.Abs(d-.35), 0, 1))
-			// preenchimento com degradê dourado e brilho no canto de cima
-			if d < -.45 {
-				t := clamp((py-2)/27, 0, 1)
-				c := lerp(rgb{R: 255, G: 246, B: 212, A: 255}, rgb{R: 208, G: 164, B: 76, A: 255}, t)
-				c = lerp(c, rgb{R: 255, G: 255, B: 255, A: 255}, clamp(.5-(px+py-6)/22, 0, .5))
-				blendStraight(img, x, y, c, clamp(-d-.45, 0, 1))
+	for _, s := range shapes {
+		for y := 0; y < CursorSize; y++ {
+			for x := 0; x < CursorSize; x++ {
+				px, py := float64(x)+.5, float64(y)+.5
+				d := polySDF(px, py, s.pts)
+				blendStraight(img, x, y, outline, clamp(1.2-math.Abs(d-.3), 0, 1))
+				if d < -.5 {
+					blendStraight(img, x, y, s.fill(px, py), clamp(-d-.5, 0, 1))
+				}
 			}
 		}
 	}
 	return img
+}
+
+func solidFill(c rgb) func(px, py float64) rgb { return func(float64, float64) rgb { return c } }
+
+// CursorImage: ponteiro normal (andar e clicar) - cunha de aco facetada, ponta em cima a esquerda.
+func CursorImage() *image.RGBA {
+	light, dark := rgb{R: 238, G: 240, B: 246, A: 255}, rgb{R: 122, G: 130, B: 146, A: 255}
+	upper := []pt{{2, 2}, {23, 13}, {14, 15}}
+	lower := []pt{{2, 2}, {14, 15}, {12, 27}}
+	whole := []pt{{2, 2}, {23, 13}, {14, 15}, {12, 27}}
+	grad := func(c rgb) func(px, py float64) rgb {
+		return func(px, py float64) rgb {
+			return lerp(c, rgb{R: 70, G: 76, B: 90, A: 255}, clamp((px+py-4)/46, 0, 1)*.55)
+		}
+	}
+	return paintShapes([]shape{
+		{whole, solidFill(rgb{R: 60, G: 66, B: 80, A: 255})},
+		{upper, grad(light)},
+		{lower, grad(dark)},
+	}, rgb{R: 20, G: 22, B: 30, A: 255})
+}
+
+// rot gira/translada pontos locais (eixo x = direcao da lamina) para o cursor: ponta em (2,2), descendo a 45 graus.
+func rot(local []pt) []pt {
+	c, s := math.Cos(math.Pi/4), math.Sin(math.Pi/4)
+	out := make([]pt, len(local))
+	for i, p := range local {
+		out[i] = pt{2 + p.x*c - p.y*s, 2 + p.x*s + p.y*c}
+	}
+	return out
+}
+
+// CursorClickImage: ao passar sobre algo clicavel - punhal de aco empunhado por uma manopla.
+func CursorClickImage() *image.RGBA {
+	blade1 := rot([]pt{{0, 0}, {15, -4.6}, {15, 0}})
+	blade2 := rot([]pt{{0, 0}, {15, 0}, {15, 4.6}})
+	bladeAll := rot([]pt{{0, 0}, {15, -4.6}, {15, 4.6}})
+	guard := rot([]pt{{15, -8}, {18, -8}, {18, 8}, {15, 8}})
+	grip := rot([]pt{{18, -2.2}, {24, -2.2}, {24, 2.2}, {18, 2.2}})
+	glove := rot([]pt{{19, -5}, {25, -6.5}, {30, -3.8}, {30, 3.8}, {25, 6.5}, {19, 5}})
+	steel := func(base rgb) func(px, py float64) rgb {
+		return func(px, py float64) rgb {
+			return lerp(base, rgb{R: 60, G: 66, B: 80, A: 255}, clamp((px+py-4)/50, 0, 1)*.5)
+		}
+	}
+	knuckles := func(px, py float64) rgb { // listras claras de articulacao da manopla
+		base := rgb{R: 136, G: 142, B: 156, A: 255}
+		u := (px - 2 + py - 2) / math.Sqrt2 // distancia ao longo do eixo
+		if v := math.Mod(u-18, 4); v < 1 && u > 19 {
+			return lerp(base, rgb{R: 240, G: 242, B: 248, A: 255}, .55)
+		}
+		return lerp(base, rgb{R: 70, G: 76, B: 90, A: 255}, clamp((px+py-30)/30, 0, 1)*.5)
+	}
+	return paintShapes([]shape{
+		{bladeAll, solidFill(rgb{R: 70, G: 76, B: 90, A: 255})},
+		{blade1, steel(rgb{R: 240, G: 242, B: 248, A: 255})},
+		{blade2, steel(rgb{R: 150, G: 158, B: 174, A: 255})},
+		{guard, solidFill(rgb{R: 188, G: 160, B: 104, A: 255})},
+		{grip, solidFill(rgb{R: 74, G: 54, B: 36, A: 255})},
+		{glove, knuckles},
+	}, rgb{R: 20, G: 22, B: 30, A: 255})
 }
 
 // blendStraight mistura c sobre o pixel mantendo alfa (RGBA "reto", nao pre-multiplicado).

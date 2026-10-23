@@ -80,11 +80,19 @@ func main() {
 		return
 	}
 	cw.SetClearsBackground(false)
-	// cursor proprio (ponteiro dourado), no lugar da seta padrao do Windows
-	if hc := newCursor(ui.CursorImage(), ui.CursorHotX, ui.CursorHotY); hc != 0 {
-		setWindowCursor(mw.Handle(), hc)
-		setWindowCursor(cw.Handle(), hc)
+	// cursores proprios: cunha de aco (normal) e punhal com manopla (sobre algo clicavel)
+	curNormal := newCursor(ui.CursorImage(), ui.CursorHotX, ui.CursorHotY)
+	curClick := newCursor(ui.CursorClickImage(), ui.CursorHotX, ui.CursorHotY)
+	setCursor := func(c win.HCURSOR) {
+		if c == 0 {
+			return
+		}
+		setWindowCursor(mw.Handle(), c)
+		setWindowCursor(cw.Handle(), c)
+		win.SetCursor(c)
 	}
+	setCursor(curNormal)
+	clickable := false
 	cw.SetPaintMode(walk.PaintBuffered)
 
 	// Janela sem a moldura padrao, com tamanho e posicao no centro da tela.
@@ -249,6 +257,29 @@ func main() {
 					changed = true
 				}
 			})
+			s := snapshot()
+			can := false
+			switch hover {
+			case ui.Close, ui.Exit, ui.NewsPrev, ui.NewsNext:
+				can = true
+			case ui.Check:
+				can = !s.Busy
+			case ui.Play:
+				can = s.CanPlay && !s.Busy && !s.GameOpen
+			case ui.NewsCard:
+				can = len(s.News) > 0 && s.News[s.NewsIdx%len(s.News)].URL != ""
+			}
+			if can != clickable {
+				clickable = can
+				changed = true
+				mw.Synchronize(func() {
+					if can {
+						setCursor(curClick)
+					} else {
+						setCursor(curNormal)
+					}
+				})
+			}
 			if changed {
 				mw.Synchronize(func() { cw.Invalidate() })
 			}
