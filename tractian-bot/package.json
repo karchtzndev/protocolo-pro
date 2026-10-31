@@ -1,0 +1,17 @@
+{
+  "name": "tractian-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Robô para preencher procedimentos e concluir OS no Tractian",
+  "scripts": {
+    "setup": "npm install && npx playwright install chromium",
+    "plan": "node run.mjs --plan",
+    "inspect": "node run.mjs --inspect",
+    "teste": "node run.mjs --limit 1",
+    "start": "node run.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}
